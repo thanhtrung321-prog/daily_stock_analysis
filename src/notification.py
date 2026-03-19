@@ -23,6 +23,7 @@ from src.config import get_config
 from src.analyzer import AnalysisResult
 from src.enums import ReportType
 from src.report_language import (
+    get_localized_stock_name,
     get_report_labels,
     get_signal_level,
     localize_chip_health,
@@ -191,10 +192,9 @@ class NotificationService(
 
     def _get_display_name(self, result: AnalysisResult, language: Optional[str] = None) -> str:
         report_language = normalize_report_language(language or self._get_report_language(result))
-        if result.name and not result.name.startswith("股票"):
-            return self._escape_md(result.name)
-        fallback = f"Stock {result.code}" if report_language == "en" else f"股票{result.code}"
-        return self._escape_md(fallback)
+        return self._escape_md(
+            get_localized_stock_name(result.name, result.code, report_language)
+        )
 
     def _get_history_compare_context(self, results: List[AnalysisResult]) -> Dict[str, Any]:
         """Fetch and cache history comparison data for markdown rendering."""
@@ -1750,9 +1750,7 @@ class NotificationBuilder:
         
         for r in sorted(results, key=lambda x: x.sentiment_score, reverse=True):
             _, emoji, _ = get_signal_level(r.operation_advice, r.sentiment_score, report_language)
-            name = r.name if r.name and not r.name.startswith("股票") else (
-                f"Stock {r.code}" if report_language == "en" else f"股票{r.code}"
-            )
+            name = get_localized_stock_name(r.name, r.code, report_language)
             lines.append(
                 f"{emoji} {name}({r.code}): {localize_operation_advice(r.operation_advice, report_language)} | "
                 f"{labels['score_label']} {r.sentiment_score}"

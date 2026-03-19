@@ -17,6 +17,7 @@ from typing import Optional, Dict, Any
 from src.repositories.analysis_repo import AnalysisRepository
 from src.report_language import (
     get_sentiment_label,
+    get_localized_stock_name,
     localize_operation_advice,
     localize_trend_prediction,
     normalize_report_language,
@@ -127,13 +128,14 @@ class AnalysisService:
         # 计算情绪标签
         report_language = normalize_report_language(getattr(result, "report_language", "zh"))
         sentiment_label = get_sentiment_label(result.sentiment_score, report_language)
+        stock_name = get_localized_stock_name(getattr(result, "name", None), result.code, report_language)
         
         # 构建报告结构
         report = {
             "meta": {
                 "query_id": query_id,
                 "stock_code": result.code,
-                "stock_name": result.name,
+                "stock_name": stock_name,
                 "report_type": report_type,
                 "report_language": report_language,
                 "current_price": result.current_price,
@@ -163,6 +165,6 @@ class AnalysisService:
         
         return {
             "stock_code": result.code,
-            "stock_name": result.name,
+            "stock_name": stock_name,
             "report": report,
         }

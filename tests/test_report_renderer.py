@@ -98,6 +98,37 @@ class TestReportRenderer(unittest.TestCase):
         self.assertIn("Summary", out)
         self.assertIn("Buy", out)
 
+    def test_render_markdown_market_snapshot_uses_template_context(self) -> None:
+        """Market snapshot macro should render localized labels with template context."""
+        r = _make_result(
+            code="AAPL",
+            name="Apple",
+            operation_advice="Buy",
+            report_language="en",
+        )
+        r.market_snapshot = {
+            "close": "180.10",
+            "prev_close": "178.25",
+            "open": "179.00",
+            "high": "181.20",
+            "low": "177.80",
+            "pct_chg": "+1.04%",
+            "change_amount": "1.85",
+            "amplitude": "1.91%",
+            "volume": "1200000",
+            "amount": "215000000",
+            "price": "180.35",
+            "volume_ratio": "1.2",
+            "turnover_rate": "0.8%",
+            "source": "polygon",
+        }
+
+        out = render("markdown", [r], summary_only=False)
+
+        self.assertIsNotNone(out)
+        self.assertIn("Market Snapshot", out)
+        self.assertIn("Volume Ratio", out)
+
     def test_render_unknown_platform_returns_none(self) -> None:
         """Unknown platform returns None (caller fallback)."""
         r = _make_result()

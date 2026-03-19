@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any, Dict, Optional
 
 SUPPORTED_REPORT_LANGUAGES = ("zh", "en")
@@ -129,6 +130,11 @@ _UNKNOWN_BY_LANGUAGE = {
 _NO_DATA_BY_LANGUAGE = {
     "zh": "数据缺失",
     "en": "Data unavailable",
+}
+
+_GENERIC_STOCK_NAME_BY_LANGUAGE = {
+    "zh": "待确认股票",
+    "en": "Unnamed Stock",
 }
 
 _REPORT_LABELS: Dict[str, Dict[str, str]] = {
@@ -329,6 +335,45 @@ def _normalize_lookup_key(value: Any) -> str:
     return str(value or "").strip().lower().replace("_", " ").replace("-", " ")
 
 
+def _iter_lookup_candidates(value: Any) -> list[str]:
+    raw_text = str(value or "").strip()
+    if not raw_text:
+        return []
+
+    candidates = [raw_text]
+    for part in re.split(r"[/|,，、]+", raw_text):
+        normalized = part.strip()
+        if normalized and normalized not in candidates:
+            candidates.append(normalized)
+    return candidates
+
+
+def _canonicalize_lookup_value(value: Any, canonical_map: Dict[str, str]) -> Optional[str]:
+    for candidate in _iter_lookup_candidates(value):
+        canonical = canonical_map.get(_normalize_lookup_key(candidate))
+        if canonical:
+            return canonical
+    return None
+
+
+def _is_placeholder_stock_name(value: Any, code: Any = None) -> bool:
+    text = str(value or "").strip()
+    if not text:
+        return True
+
+    lowered = text.lower()
+    if lowered in {"n/a", "na", "none", "null", "unknown"}:
+        return True
+    if text in {"-", "—", "未知", "待补充"}:
+        return True
+
+    code_text = str(code or "").strip()
+    if code_text and lowered == code_text.lower():
+        return True
+
+    return text.startswith("股票")
+
+
 def _translate_from_map(
     value: Any,
     language: Optional[str],
@@ -341,7 +386,7 @@ def _translate_from_map(
     if not raw_text:
         return raw_text
 
-    canonical = canonical_map.get(_normalize_lookup_key(raw_text))
+    canonical = _canonicalize_lookup_value(raw_text, canonical_map)
     if canonical:
         return translations[canonical][normalized_language]
     return raw_text
@@ -389,7 +434,7 @@ def localize_chip_health(value: Any, language: Optional[str]) -> str:
 
 def infer_decision_type_from_advice(value: Any, default: str = "hold") -> str:
     """Infer buy/hold/sell from human-readable operation advice."""
-    canonical = _OPERATION_ADVICE_CANONICAL_MAP.get(_normalize_lookup_key(value))
+    canonical = _canonicalize_lookup_value(value, _OPERATION_ADVICE_CANONICAL_MAP)
     if canonical in {"strong_buy", "buy"}:
         return "buy"
     if canonical in {"reduce", "sell", "strong_sell"}:
@@ -401,19 +446,20 @@ def infer_decision_type_from_advice(value: Any, default: str = "hold") -> str:
 
 def get_signal_level(advice: Any, score: Any, language: Optional[str]) -> tuple[str, str, str]:
     """Return localized signal text, emoji, and stable color tag."""
-    canonical = _OPERATION_ADVICE_CANONICAL_MAP.get(_normalize_lookup_key(advice))
+    normalized_language = normalize_report_language(language)
+    canonical = _canonicalize_lookup_value(advice, _OPERATION_ADVICE_CANONICAL_MAP)
     if canonical == "strong_buy":
-        return (_OPERATION_ADVICE_TRANSLATIONS["strong_buy"][normalize_report_language(language)], "💚", "strong_buy")
+        return (_OPERATION_ADVICE_TRANSLATIONS["strong_buy"][normalized_language], "💚", "strong_buy")
     if canonical == "buy":
-        return (_OPERATION_ADVICE_TRANSLATIONS["buy"][normalize_report_language(language)], "🟢", "buy")
+        return (_OPERATION_ADVICE_TRANSLATIONS["buy"][normalized_language], "🟢", "buy")
     if canonical == "hold":
-        return (_OPERATION_ADVICE_TRANSLATIONS["hold"][normalize_report_language(language)], "🟡", "hold")
+        return (_OPERATION_ADVICE_TRANSLATIONS["hold"][normalized_language], "🟡", "hold")
     if canonical == "watch":
-        return (_OPERATION_ADVICE_TRANSLATIONS["watch"][normalize_report_language(language)], "⚪", "watch")
+        return (_OPERATION_ADVICE_TRANSLATIONS["watch"][normalized_language], "⚪", "watch")
     if canonical == "reduce":
-        return (_OPERATION_ADVICE_TRANSLATIONS["reduce"][normalize_report_language(language)], "🟠", "reduce")
+        return (_OPERATION_ADVICE_TRANSLATIONS["reduce"][normalized_language], "🟠", "reduce")
     if canonical in {"sell", "strong_sell"}:
-        return (_OPERATION_ADVICE_TRANSLATIONS["sell"][normalize_report_language(language)], "🔴", "sell")
+        return (_OPERATION_ADVICE_TRANSLATIONS["sell"][normalized_language], "🔴", "sell")
 
     try:
         numeric_score = int(float(score))
@@ -421,16 +467,24 @@ def get_signal_level(advice: Any, score: Any, language: Optional[str]) -> tuple[
         numeric_score = 50
 
     if numeric_score >= 80:
-        return (_OPERATION_ADVICE_TRANSLATIONS["strong_buy"][normalize_report_language(language)], "💚", "strong_buy")
+        return (_OPERATION_ADVICE_TRANSLATIONS["strong_buy"][normalized_language], "💚", "strong_buy")
     if numeric_score >= 65:
-        return (_OPERATION_ADVICE_TRANSLATIONS["buy"][normalize_report_language(language)], "🟢", "buy")
+        return (_OPERATION_ADVICE_TRANSLATIONS["buy"][normalized_language], "🟢", "buy")
     if numeric_score >= 55:
-        return (_OPERATION_ADVICE_TRANSLATIONS["hold"][normalize_report_language(language)], "🟡", "hold")
+        return (_OPERATION_ADVICE_TRANSLATIONS["hold"][normalized_language], "🟡", "hold")
     if numeric_score >= 45:
-        return (_OPERATION_ADVICE_TRANSLATIONS["watch"][normalize_report_language(language)], "⚪", "watch")
+        return (_OPERATION_ADVICE_TRANSLATIONS["watch"][normalized_language], "⚪", "watch")
     if numeric_score >= 35:
-        return (_OPERATION_ADVICE_TRANSLATIONS["reduce"][normalize_report_language(language)], "🟠", "reduce")
-    return (_OPERATION_ADVICE_TRANSLATIONS["sell"][normalize_report_language(language)], "🔴", "sell")
+        return (_OPERATION_ADVICE_TRANSLATIONS["reduce"][normalized_language], "🟠", "reduce")
+    return (_OPERATION_ADVICE_TRANSLATIONS["sell"][normalized_language], "🔴", "sell")
+
+
+def get_localized_stock_name(value: Any, code: Any, language: Optional[str]) -> str:
+    """Return a localized stock name placeholder when the original name is missing."""
+    raw_text = str(value or "").strip()
+    if not _is_placeholder_stock_name(raw_text, code):
+        return raw_text
+    return _GENERIC_STOCK_NAME_BY_LANGUAGE[normalize_report_language(language)]
 
 
 def get_sentiment_label(score: int, language: Optional[str]) -> str:

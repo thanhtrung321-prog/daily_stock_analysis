@@ -45,7 +45,7 @@ export const ReportDetails: React.FC<ReportDetailsProps> = ({
         <button
           type="button"
           onClick={() => copyToClipboard(jsonStr)}
-          className="absolute top-2 right-2 text-xs text-muted-text hover:text-cyan transition-colors"
+          className="home-accent-link absolute top-2 right-2 text-xs text-muted-text"
         >
           {copied ? text.copied : text.copy}
         </button>
@@ -57,17 +57,17 @@ export const ReportDetails: React.FC<ReportDetailsProps> = ({
   };
 
   return (
-    <Card variant="bordered" padding="md" className="text-left">
+    <Card variant="bordered" padding="md" className="home-panel-card text-left">
       <div className="mb-3 flex items-baseline gap-2">
         <span className="label-uppercase">{text.transparency}</span>
-        <h3 className="text-base font-semibold text-white mt-0.5">{text.traceability}</h3>
+        <h3 className="mt-0.5 text-base font-semibold text-foreground">{text.traceability}</h3>
       </div>
 
       {/* Record ID */}
       {recordId && (
-        <div className="flex items-center gap-2 text-xs text-muted-text mb-3 pb-3 border-b border-white/5">
+        <div className="home-divider mb-3 flex items-center gap-2 border-b pb-3 text-xs text-muted-text">
           <span>{text.recordId}:</span>
-          <code className="font-mono text-xs text-cyan bg-cyan/10 px-1.5 py-0.5 rounded">
+          <code className="home-accent-chip px-1.5 py-0.5 font-mono text-xs">
             {recordId}
           </code>
         </div>
@@ -81,9 +81,9 @@ export const ReportDetails: React.FC<ReportDetailsProps> = ({
             <button
               type="button"
               onClick={() => setShowRaw(!showRaw)}
-              className="w-full flex items-center justify-between p-2.5 rounded-lg bg-elevated hover:bg-hover transition-colors"
+              className="home-surface-button flex w-full items-center justify-between rounded-lg p-2.5"
             >
-              <span className="text-xs text-white">{text.rawResult}</span>
+              <span className="text-xs text-foreground">{text.rawResult}</span>
               <svg
                 className={`w-3.5 h-3.5 text-muted-text transition-transform ${showRaw ? 'rotate-180' : ''}`}
                 fill="none"
@@ -107,9 +107,9 @@ export const ReportDetails: React.FC<ReportDetailsProps> = ({
             <button
               type="button"
               onClick={() => setShowSnapshot(!showSnapshot)}
-              className="w-full flex items-center justify-between p-2.5 rounded-lg bg-elevated hover:bg-hover transition-colors"
+              className="home-surface-button flex w-full items-center justify-between rounded-lg p-2.5"
             >
-              <span className="text-xs text-white">{text.analysisSnapshot}</span>
+              <span className="text-xs text-foreground">{text.analysisSnapshot}</span>
               <svg
                 className={`w-3.5 h-3.5 text-muted-text transition-transform ${showSnapshot ? 'rotate-180' : ''}`}
                 fill="none"

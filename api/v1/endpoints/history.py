@@ -31,7 +31,7 @@ from api.v1.schemas.history import (
 )
 from api.v1.schemas.common import ErrorResponse
 from src.storage import DatabaseManager
-from src.report_language import normalize_report_language
+from src.report_language import get_localized_stock_name, normalize_report_language
 from src.services.history_service import HistoryService, MarkdownReportGenerationError
 from src.utils.data_processing import normalize_model_used, extract_fundamental_detail_fields
 
@@ -239,13 +239,18 @@ def get_history_detail(
                 else None
             )
         )
+        stock_name = get_localized_stock_name(
+            result.get("stock_name"),
+            result.get("stock_code", ""),
+            report_language,
+        )
 
         # 构建响应模型
         meta = ReportMeta(
             id=result.get("id"),
             query_id=result.get("query_id", ""),
             stock_code=result.get("stock_code", ""),
-            stock_name=result.get("stock_name"),
+            stock_name=stock_name,
             report_type=result.get("report_type"),
             report_language=report_language,
             created_at=result.get("created_at"),

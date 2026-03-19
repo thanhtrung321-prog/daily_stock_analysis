@@ -16,6 +16,7 @@ from typing import Any, Dict, List, Optional
 from src.analyzer import AnalysisResult
 from src.config import get_config
 from src.report_language import (
+    get_localized_stock_name,
     get_report_labels,
     get_signal_level,
     localize_chip_health,
@@ -117,9 +118,7 @@ def render(
     sorted_enriched = []
     for r in sorted_results:
         st, se, _ = get_signal_level(r.operation_advice, r.sentiment_score, report_language)
-        rn = r.name if r.name and not r.name.startswith("股票") else (
-            f"Stock {r.code}" if report_language == "en" else f"股票{r.code}"
-        )
+        rn = get_localized_stock_name(r.name, r.code, report_language)
         sorted_enriched.append({
             "result": r,
             "signal_text": st,
@@ -158,7 +157,10 @@ def render(
         "localize_chip_health": localize_chip_health,
     }
     if extra_context:
-        context.update(extra_context)
+        safe_extra_context = dict(extra_context)
+        safe_extra_context.pop("labels", None)
+        safe_extra_context.pop("report_language", None)
+        context.update(safe_extra_context)
 
     try:
         env = Environment(
