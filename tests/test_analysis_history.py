@@ -417,6 +417,46 @@ class AnalysisHistoryTestCase(unittest.TestCase):
         self.assertIn("Unnamed Stock (AAPL)", markdown)
         self.assertNotIn("核心结论", markdown)
 
+    def test_history_detail_localizes_english_summary_fields(self) -> None:
+        """History detail should localize summary enums for English reports."""
+        if get_history_detail is None:
+            self.skipTest("fastapi is not installed in this test environment")
+
+        result = AnalysisResult(
+            code="AAPL",
+            name="股票AAPL",
+            sentiment_score=78,
+            trend_prediction="看多",
+            operation_advice="买入",
+            analysis_summary="Momentum remains constructive.",
+            report_language="en",
+        )
+
+        saved = self.db.save_analysis_history(
+            result=result,
+            query_id="query_english_detail_001",
+            report_type="full",
+            news_content="news",
+            context_snapshot=None,
+            save_snapshot=False,
+        )
+        self.assertEqual(saved, 1)
+
+        with self.db.get_session() as session:
+            row = session.query(AnalysisHistory).filter(
+                AnalysisHistory.query_id == "query_english_detail_001"
+            ).first()
+            if row is None:
+                self.fail("未找到保存的历史记录")
+            record_id = row.id
+
+        report = get_history_detail(str(record_id), db_manager=self.db)
+
+        self.assertEqual(report.meta.report_language, "en")
+        self.assertEqual(report.meta.stock_name, "Unnamed Stock")
+        self.assertEqual(report.summary.operation_advice, "Buy")
+        self.assertEqual(report.summary.trend_prediction, "Bullish")
+
     def test_delete_analysis_history_records_also_cleans_backtests(self) -> None:
         """删除历史记录时应一并清理关联回测结果。"""
         record_id = self._save_history("query_delete_001")

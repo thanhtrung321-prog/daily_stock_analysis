@@ -778,6 +778,12 @@ class NotificationService(
         config = get_config()
         report_language = self._get_report_language(results)
         labels = get_report_labels(report_language)
+        reason_label = "Rationale" if report_language == "en" else "操作理由"
+        risk_warning_label = "Risk Warning" if report_language == "en" else "风险提示"
+        technical_heading = "Technicals" if report_language == "en" else "技术面"
+        ma_label = "Moving Averages" if report_language == "en" else "均线"
+        volume_analysis_label = "Volume" if report_language == "en" else "量能"
+        news_heading = "News Flow" if report_language == "en" else "消息面"
         if getattr(config, 'report_renderer_enabled', False) and results:
             from src.services.report_renderer import render
             out = render(
@@ -1011,30 +1017,30 @@ class NotificationService(
                     # 操作理由
                     if result.buy_reason:
                         report_lines.extend([
-                            f"**💡 操作理由**: {result.buy_reason}",
+                            f"**💡 {reason_label}**: {result.buy_reason}",
                             "",
                         ])
                     # 风险提示
                     if result.risk_warning:
                         report_lines.extend([
-                            f"**⚠️ 风险提示**: {result.risk_warning}",
+                            f"**⚠️ {risk_warning_label}**: {result.risk_warning}",
                             "",
                         ])
                     # 技术面分析
                     if result.ma_analysis or result.volume_analysis:
                         report_lines.extend([
-                            "### 📊 技术面",
+                            f"### 📊 {technical_heading}",
                             "",
                         ])
                         if result.ma_analysis:
-                            report_lines.append(f"**均线**: {result.ma_analysis}")
+                            report_lines.append(f"**{ma_label}**: {result.ma_analysis}")
                         if result.volume_analysis:
-                            report_lines.append(f"**量能**: {result.volume_analysis}")
+                            report_lines.append(f"**{volume_analysis_label}**: {result.volume_analysis}")
                         report_lines.append("")
                     # 消息面
                     if result.news_summary:
                         report_lines.extend([
-                            "### 📰 消息面",
+                            f"### 📰 {news_heading}",
                             f"{result.news_summary}",
                             "",
                         ])

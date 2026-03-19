@@ -259,6 +259,40 @@ class TestNotificationServiceReportGeneration(unittest.TestCase):
         self.assertIn("Buy", out)
 
     @mock.patch("src.notification.get_config")
+    def test_generate_dashboard_report_localizes_english_no_dashboard_fallback(
+        self, mock_get_config: mock.MagicMock
+    ):
+        mock_get_config.return_value = _make_config(report_renderer_enabled=False, report_language="en")
+        service = NotificationService()
+        result = AnalysisResult(
+            code="AAPL",
+            name="Apple",
+            sentiment_score=61,
+            trend_prediction="看多",
+            operation_advice="持有",
+            analysis_summary="Wait for confirmation.",
+            report_language="en",
+            buy_reason="Momentum remains constructive.",
+            risk_warning="Watch for a failed breakout.",
+            ma_analysis="Price remains above MA20.",
+            volume_analysis="Volume is steady.",
+            news_summary="Product cycle remains supportive.",
+        )
+
+        out = service.generate_dashboard_report([result], report_date="2026-03-19")
+
+        self.assertIn("Rationale", out)
+        self.assertIn("Risk Warning", out)
+        self.assertIn("Technicals", out)
+        self.assertIn("Moving Averages", out)
+        self.assertIn("Volume", out)
+        self.assertIn("News Flow", out)
+        self.assertNotIn("操作理由", out)
+        self.assertNotIn("风险提示", out)
+        self.assertNotIn("技术面", out)
+        self.assertNotIn("消息面", out)
+
+    @mock.patch("src.notification.get_config")
     def test_generate_single_stock_report_localizes_english_fallback(self, mock_get_config: mock.MagicMock):
         mock_get_config.return_value = _make_config(report_renderer_enabled=False, report_language="en")
         service = NotificationService()

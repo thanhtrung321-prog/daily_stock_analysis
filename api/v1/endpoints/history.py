@@ -31,7 +31,12 @@ from api.v1.schemas.history import (
 )
 from api.v1.schemas.common import ErrorResponse
 from src.storage import DatabaseManager
-from src.report_language import get_localized_stock_name, normalize_report_language
+from src.report_language import (
+    get_localized_stock_name,
+    localize_operation_advice,
+    localize_trend_prediction,
+    normalize_report_language,
+)
 from src.services.history_service import HistoryService, MarkdownReportGenerationError
 from src.utils.data_processing import normalize_model_used, extract_fundamental_detail_fields
 
@@ -261,8 +266,14 @@ def get_history_detail(
         
         summary = ReportSummary(
             analysis_summary=result.get("analysis_summary"),
-            operation_advice=result.get("operation_advice"),
-            trend_prediction=result.get("trend_prediction"),
+            operation_advice=localize_operation_advice(
+                result.get("operation_advice"),
+                report_language,
+            ),
+            trend_prediction=localize_trend_prediction(
+                result.get("trend_prediction"),
+                report_language,
+            ),
             sentiment_score=result.get("sentiment_score"),
             sentiment_label=result.get("sentiment_label")
         )
