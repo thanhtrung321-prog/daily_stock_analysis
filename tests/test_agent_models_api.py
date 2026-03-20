@@ -5,11 +5,7 @@ import asyncio
 import os
 import unittest
 from types import SimpleNamespace
-<<<<<<< HEAD
 from unittest.mock import MagicMock, patch
-=======
-from unittest.mock import patch
->>>>>>> 00cb3b7 (fix: clean up agent skill compatibility)
 
 from api.v1.endpoints import agent
 from src.config import Config
@@ -338,7 +334,6 @@ class AgentSkillsEndpointTestCase(unittest.TestCase):
         executor.chat.assert_called_once()
         self.assertEqual(executor.chat.call_args.kwargs["context"]["skills"], [])
         self.assertEqual(payload["content"], "ok")
-
 class AgentModelsSourceDetectionTestCase(unittest.TestCase):
     @patch("src.config.setup_env")
     @patch.object(Config, "_parse_litellm_yaml", return_value=[])

@@ -428,6 +428,34 @@ class TestBuiltinToolDefinitions(unittest.TestCase):
             self.assertIsInstance(td, ToolDefinition)
             self.assertEqual(td.category, "data")
 
+    def test_skill_backtest_tool_reports_specific_skill_as_unsupported_until_persisted(self):
+        from src.agent.tools.backtest_tools import _handle_get_skill_backtest_summary
+
+        svc = MagicMock()
+        svc.get_skill_summary.return_value = None
+
+        with patch("src.agent.tools.backtest_tools._get_backtest_service", return_value=svc):
+            payload = _handle_get_skill_backtest_summary(skill_id="bull_trend", eval_window_days=20)
+
+        svc.get_skill_summary.assert_called_once_with("bull_trend", eval_window_days=20)
+        self.assertEqual(payload["skill_id"], "bull_trend")
+        self.assertFalse(payload["supported"])
+        self.assertIn("not available", payload["info"])
+
+    def test_backtest_tool_errors_do_not_expose_raw_exception_text(self):
+        from src.agent.tools.backtest_tools import _handle_get_skill_backtest_summary, _handle_get_stock_backtest_summary
+
+        svc = MagicMock()
+        svc.get_skill_summary.side_effect = RuntimeError("db path: /tmp/secret.db")
+        svc.get_summary.side_effect = RuntimeError("db path: /tmp/secret.db")
+
+        with patch("src.agent.tools.backtest_tools._get_backtest_service", return_value=svc):
+            skill_payload = _handle_get_skill_backtest_summary(skill_id="bull_trend")
+            stock_payload = _handle_get_stock_backtest_summary(stock_code="600519")
+
+        self.assertEqual(skill_payload, {"error": "Failed to retrieve backtest summary."})
+        self.assertEqual(stock_payload, {"error": "Failed to retrieve backtest data."})
+
     def test_all_tools_have_valid_schemas(self):
         """All tools should generate valid OpenAI-format schemas (used by litellm)."""
         from src.agent.tools.data_tools import ALL_DATA_TOOLS
