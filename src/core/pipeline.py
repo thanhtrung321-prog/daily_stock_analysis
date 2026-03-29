@@ -46,6 +46,8 @@ from bot.models import BotMessage
 
 logger = logging.getLogger(__name__)
 
+_SINGLE_STOCK_NOTIFY_LOCK_INIT_GUARD = threading.Lock()
+
 
 class StockAnalysisPipeline:
     """
@@ -1313,8 +1315,11 @@ class StockAnalysisPipeline:
         stock_code = getattr(result, "code", None) or fallback_code or "unknown"
         notify_lock = getattr(self, "_single_stock_notify_lock", None)
         if notify_lock is None:
-            notify_lock = threading.Lock()
-            setattr(self, "_single_stock_notify_lock", notify_lock)
+            with _SINGLE_STOCK_NOTIFY_LOCK_INIT_GUARD:
+                notify_lock = getattr(self, "_single_stock_notify_lock", None)
+                if notify_lock is None:
+                    notify_lock = threading.Lock()
+                    setattr(self, "_single_stock_notify_lock", notify_lock)
 
         with notify_lock:
             try:
