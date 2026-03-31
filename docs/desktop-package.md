@@ -57,7 +57,7 @@ powershell -ExecutionPolicy Bypass -File scripts\build-all.ps1
 3. PyInstaller 打包后端
 4. electron-builder 打包桌面应用
 
-当前 Windows 安装包使用 NSIS 向导式安装流程，仅支持当前用户安装且已禁用管理员提权，安装时可手动选择目标目录（例如非 C 盘）。由于安装器不会请求管理员权限，选择系统保护目录（如 `C:\Program Files`）会导致安装失败，请选择当前用户可写的目录。安装完成后，桌面端仍会按现有逻辑在安装目录旁生成/读取 `.env`、`data/stock_analysis.db` 和 `logs/desktop.log`。推荐使用默认的 per-user 安装目录。如果不想安装，仍可继续分发 `win-unpacked` 免安装包。
+当前 Windows 安装包使用 NSIS 向导式安装流程，仅支持当前用户安装且已禁用管理员提权，安装时可手动选择目标目录（例如非 C 盘）。安装器通过 NSIS `.onVerifyInstDir` 回调在安装器层面阻止选择 `Program Files`、`Windows` 等系统保护目录——选择这些路径时"下一步"按钮会被自动禁用。安装完成后，桌面端仍会按现有逻辑在安装目录旁生成/读取 `.env`、`data/stock_analysis.db` 和 `logs/desktop.log`。推荐使用默认的 per-user 安装目录。如果不想安装，仍可继续分发 `win-unpacked` 免安装包。
 
 ## GitHub CI 自动打包并发布 Release
 
@@ -116,7 +116,7 @@ npm run build
 
 ## 目录结构
 
-Windows 安装包模式下，安装器仅支持当前用户安装且已禁用管理员提权，用户可在安装向导中选择安装目录；安装完成后，应用会在安装目录旁生成/读取 `.env`、`data/stock_analysis.db` 和 `logs/desktop.log`。由于不会请求提权，选择系统保护目录（如 `C:\Program Files`）会导致安装失败，请保留默认的 per-user 安装位置或选择其他用户可写目录。
+Windows 安装包模式下，安装器仅支持当前用户安装且已禁用管理员提权，用户可在安装向导中选择安装目录；安装器会在安装器层面阻止选择 `Program Files`、`Windows` 等系统保护目录（选择时"下一步"按钮自动禁用），安装完成后，应用会在安装目录旁生成/读取 `.env`、`data/stock_analysis.db` 和 `logs/desktop.log`。请保留默认的 per-user 安装位置或选择其他用户可写目录。
 
 `win-unpacked` 免安装模式下，目录结构如下：
 
