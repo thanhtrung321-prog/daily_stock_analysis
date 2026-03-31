@@ -46,6 +46,8 @@ from bot.models import BotMessage
 
 logger = logging.getLogger(__name__)
 
+# 防御性 guard：当实例绕过 __init__（如测试中 __new__）构造时，
+# double-check 初始化 _single_stock_notify_lock 仍然线程安全。
 _SINGLE_STOCK_NOTIFY_LOCK_INIT_GUARD = threading.Lock()
 
 
