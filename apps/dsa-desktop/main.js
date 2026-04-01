@@ -1,14 +1,129 @@
-const { app, BrowserWindow, shell, nativeTheme } = require('electron');
+const { app, BrowserWindow, shell, nativeTheme, ipcMain, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
 const net = require('net');
 const http = require('http');
+const https = require('https');
 
 let mainWindow = null;
 let backendProcess = null;
 let logFilePath = null;
 let backendStartError = null;
+
+const GITHUB_OWNER = 'ZhuLinsen';
+const GITHUB_REPO = 'daily_stock_analysis';
+
+function compareVersions(current, latest) {
+  const parse = (v) => v.replace(/^v/, '').split('.').map(Number);
+  const a = parse(current);
+  const b = parse(latest);
+  for (let i = 0; i < 3; i++) {
+    const ai = a[i] || 0;
+    const bi = b[i] || 0;
+    if (bi > ai) return true;
+    if (bi < ai) return false;
+  }
+  return false;
+}
+
+function fetchLatestRelease() {
+  return new Promise((resolve, reject) => {
+    const options = {
+      hostname: 'api.github.com',
+      path: `/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest`,
+      headers: {
+        'User-Agent': `${GITHUB_REPO}-desktop/${app.getVersion()}`,
+        Accept: 'application/vnd.github+json',
+      },
+      timeout: 8000,
+    };
+
+    const req = https.get(options, (res) => {
+      let data = '';
+      res.on('data', (chunk) => { data += chunk; });
+      res.on('end', () => {
+        try {
+          if (res.statusCode === 200) {
+            resolve(JSON.parse(data));
+          } else {
+            reject(new Error(`GitHub API returned status ${res.statusCode}`));
+          }
+        } catch (e) {
+          reject(e);
+        }
+      });
+    });
+
+    req.on('timeout', () => {
+      req.destroy(new Error('Request timed out'));
+    });
+    req.on('error', reject);
+  });
+}
+
+async function checkForUpdates(silent = true) {
+  try {
+    const release = await fetchLatestRelease();
+    const latestTag = (release.tag_name || '').trim();
+    const currentVersion = app.getVersion();
+
+    logLine(`[updater] current=v${currentVersion} latest=${latestTag}`);
+
+    if (!latestTag || !compareVersions(currentVersion, latestTag)) {
+      if (!silent && mainWindow && !mainWindow.isDestroyed()) {
+        dialog.showMessageBox(mainWindow, {
+          type: 'info',
+          title: '已是最新版本',
+          message: `当前版本 v${currentVersion} 已是最新版本。`,
+          buttons: ['确定'],
+        });
+      }
+      return;
+    }
+
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      return;
+    }
+
+    const body = release.body || '';
+    const releaseNotes = body.length > 600 ? body.slice(0, 600) + '…' : body;
+    const detail = [
+      `当前版本：v${currentVersion}`,
+      `最新版本：${latestTag}`,
+      releaseNotes ? `\n更新说明：\n${releaseNotes}` : '',
+    ]
+      .filter(Boolean)
+      .join('\n');
+
+    const { response } = await dialog.showMessageBox(mainWindow, {
+      type: 'info',
+      title: '发现新版本',
+      message: `发现新版本 ${latestTag}`,
+      detail,
+      buttons: ['立即前往下载', '稍后提醒'],
+      defaultId: 0,
+      cancelId: 1,
+    });
+
+    if (response === 0) {
+      const releaseUrl =
+        release.html_url ||
+        `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest`;
+      shell.openExternal(releaseUrl);
+    }
+  } catch (error) {
+    logLine(`[updater] check failed: ${error.message}`);
+    if (!silent && mainWindow && !mainWindow.isDestroyed()) {
+      dialog.showMessageBox(mainWindow, {
+        type: 'warning',
+        title: '更新检查失败',
+        message: '无法检查更新，请检查网络连接或手动前往 GitHub 查看最新版本。',
+        buttons: ['确定'],
+      });
+    }
+  }
+}
 
 function resolveWindowBackgroundColor() {
   return nativeTheme.shouldUseDarkColors ? '#08080c' : '#f4f7fb';
@@ -546,6 +661,8 @@ async function createWindow() {
     await mainWindow.loadURL(`http://127.0.0.1:${port}/`);
     logStartup(`Main page loadURL resolved in ${Date.now() - mainPageStartedAt}ms`);
     logStartup(`Main UI loaded in ${Date.now() - startupStartedAt}ms`);
+    // Check for updates silently after UI is ready; delay to avoid slowing startup
+    setTimeout(() => checkForUpdates(true), 4000);
   } catch (error) {
     logStartup(`Startup failed while waiting for health: ${String(error)}`);
     const errorUrl = `file://${loadingPath}?error=${encodeURIComponent(String(error))}`;
@@ -553,7 +670,10 @@ async function createWindow() {
   }
 }
 
-app.whenReady().then(createWindow);
+app.whenReady().then(() => {
+  ipcMain.handle('check-for-updates', () => checkForUpdates(false));
+  createWindow();
+});
 
 app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) {

@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 <!-- 新条目格式：- [类型] 描述（类型取值：新功能/改进/修复/文档/测试/chore）-->
 <!-- 每条独立一行追加到本段末尾，无需分类标题，合并时冲突最小 -->
+- [新功能] 桌面端（Windows / macOS）启动后静默检查 GitHub 最新 Release，发现新版本时弹窗展示版本号与更新说明，提供"立即前往下载"与"稍后提醒"选项；前者在浏览器打开对应 Release 页，`window.dsaDesktop.checkForUpdates()` 可供 Web 侧手动触发同一流程
 
 ## [3.12.0] - 2026-04-01
 
