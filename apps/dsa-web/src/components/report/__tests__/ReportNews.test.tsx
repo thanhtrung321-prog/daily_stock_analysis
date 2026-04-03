@@ -82,7 +82,7 @@ describe('ReportNews', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('历史资讯快照');
     expect(screen.getByRole('alert')).toHaveTextContent('这里展示的是分析生成时保存的资讯结果');
 
-    fireEvent.click(screen.getByRole('button', { name: '重新读取' }));
+    fireEvent.click(screen.getByRole('button', { name: '重新读取快照' }));
 
     await waitFor(() => {
       expect(historyApi.getNews).toHaveBeenCalledTimes(2);
