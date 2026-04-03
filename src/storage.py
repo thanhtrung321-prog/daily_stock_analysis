@@ -1477,20 +1477,27 @@ class DatabaseManager:
                 # Each record has ~15 columns, so chunk upserts to stay within bounds.
                 _SQLITE_CHUNK = 50
                 # `_run_write_transaction()` opens SQLite writes with
-                # `BEGIN IMMEDIATE`, so this pre-upsert count and the later
-                # upsert execute within one stable write window.
+                # `BEGIN IMMEDIATE`, so existence checks and upsert execute
+                # within one stable write window.
+                existing_dates = set()
                 _COUNT_CHUNK = 500
-                prior_count = sum(
-                    session.execute(
-                        select(func.count()).select_from(StockDaily).where(
-                            and_(
-                                StockDaily.code == code,
-                                StockDaily.date.in_(batch_dates[j : j + _COUNT_CHUNK]),
+                for j in range(0, len(batch_dates), _COUNT_CHUNK):
+                    chunk_dates = batch_dates[j : j + _COUNT_CHUNK]
+                    if not chunk_dates:
+                        continue
+                    existing_dates.update(
+                        session.execute(
+                            select(StockDaily.date).where(
+                                and_(
+                                    StockDaily.code == code,
+                                    StockDaily.date.in_(chunk_dates),
+                                )
                             )
-                        )
-                    ).scalar() or 0
-                    for j in range(0, len(batch_dates), _COUNT_CHUNK)
-                )
+                        ).scalars().all()
+                    )
+                new_records = [
+                    record for record in records if record['date'] not in existing_dates
+                ]
                 for i in range(0, len(records), _SQLITE_CHUNK):
                     chunk = records[i : i + _SQLITE_CHUNK]
                     stmt = sqlite_insert(StockDaily).values(chunk)
@@ -1515,7 +1522,7 @@ class DatabaseManager:
                             },
                         )
                     )
-                return len(batch_dates) - prior_count
+                return len(new_records)
             else:
                 existing_rows = {
                     row.date: row
