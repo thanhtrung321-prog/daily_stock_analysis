@@ -370,10 +370,32 @@ def run_agent_loop(
     provider_used = ""
     models_used: List[str] = []
 
+    # Minimum seconds needed for a meaningful LLM round-trip.  If the
+    # remaining budget is positive but below this threshold, the step will
+    # almost certainly timeout mid-call, wasting a billed request.  Only
+    # enforced from step 2 onwards so the first step always gets a chance
+    # even when the total budget is small.
+    _MIN_STEP_BUDGET_S = 8.0
+
     for step in range(max_steps):
         remaining_timeout = _remaining_timeout_seconds(start_time, max_wall_clock_seconds)
-        if remaining_timeout is not None and remaining_timeout <= 0:
-            logger.warning("Agent timed out before step %d", step + 1)
+        budget_exhausted = (
+            remaining_timeout is not None
+            and (
+                remaining_timeout <= 0
+                or (step > 0 and remaining_timeout <= _MIN_STEP_BUDGET_S)
+            )
+        )
+        if budget_exhausted:
+            if remaining_timeout <= 0:
+                logger.warning("Agent timed out before step %d", step + 1)
+            else:
+                logger.warning(
+                    "Agent budget too low for step %d (%.1fs remaining, min %.1fs) — treating as timeout",
+                    step + 1,
+                    remaining_timeout,
+                    _MIN_STEP_BUDGET_S,
+                )
             return _build_timeout_result(
                 start_time=start_time,
                 max_wall_clock_seconds=float(max_wall_clock_seconds),

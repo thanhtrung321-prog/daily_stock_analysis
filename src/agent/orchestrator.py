@@ -307,11 +307,28 @@ class AgentOrchestrator:
         specialist_agents_inserted = False
         index = 0
 
+        # Minimum seconds required for a stage to do useful work.  Starting
+        # a stage with less budget virtually guarantees a timeout that wastes
+        # an LLM billing cycle.  Only enforced after at least one stage has
+        # completed so that the first stage always gets a chance to run
+        # even when the total budget is small.
+        _MIN_STAGE_BUDGET_S = 15
+
         while index < len(agents):
             agent = agents[index]
             elapsed_s = time.time() - t0
-            if timeout_s and elapsed_s >= timeout_s:
-                logger.error("[Orchestrator] pipeline timed out before stage '%s'", agent.agent_name)
+            remaining_budget = timeout_s - elapsed_s if timeout_s else None
+            budget_exhausted = (
+                timeout_s
+                and remaining_budget is not None
+                and (
+                    remaining_budget <= 0
+                    or (index > 0 and remaining_budget < _MIN_STAGE_BUDGET_S)
+                )
+            )
+            if budget_exhausted:
+                reason = "timed out" if remaining_budget <= 0 else f"insufficient budget ({remaining_budget:.1f}s < {_MIN_STAGE_BUDGET_S}s)"
+                logger.error("[Orchestrator] pipeline %s before stage '%s'", reason, agent.agent_name)
                 if progress_callback:
                     progress_callback({
                         "type": "pipeline_timeout",
