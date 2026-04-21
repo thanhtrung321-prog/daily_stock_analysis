@@ -13,8 +13,10 @@ import pandas as pd
 from src.services.stock_history_cache import (
     AGENT_HISTORY_BASELINE_DAYS,
     _ensure_min_history_cached_with_bars,
+    _normalize_cache_code,
     _resolve_expected_target_date,
     ensure_min_history_cached,
+    get_candidate_pick_cache,
     load_recent_bars_from_db,
     load_recent_history_df,
     reset_agent_frozen_target_date,
@@ -664,7 +666,6 @@ class StockHistoryCacheTestCase(unittest.TestCase):
 
     def test_candidate_pick_cache_released_even_when_caller_raises(self) -> None:
         """R7: ContextVar contract — reset releases the cache even on error."""
-        from src.services.stock_history_cache import get_candidate_pick_cache
 
         class _Boom(Exception):
             pass
@@ -712,6 +713,136 @@ class StockHistoryCacheTestCase(unittest.TestCase):
         # 两条路径在 ContextVar 作用下都应解析到同一交易日 T，端条 bar 日期一致
         self.assertEqual(latest_date_none, frozen)
         self.assertEqual(latest_date_explicit, frozen)
+
+    # -- Reviewer blocker follow-up: cache superset / lookup_days 契约 --
+
+    def test_candidate_pick_cache_no_shortcut_from_smaller_to_larger_window(self) -> None:
+        """先 60 日再 120 日：第二次必须拿到 120 条，且不触发 HTTP 补抓。
+
+        这是 reviewer 指出的 correctness blocker 回归锁：原实现缓存已截断的
+        60 条 winning bars，大窗口请求命中短快照导致 ``_has_sufficient_history``
+        误判需补抓。修复后 cache value 存 superset（lookup=240），大窗口直接从
+        superset 裁剪返回。
+        """
+        from unittest.mock import MagicMock, patch
+
+        target_date = date(2026, 4, 16)
+        db = _DummyDB()
+        db.seed("600519", AGENT_HISTORY_BASELINE_DAYS, end_date=target_date, source="seed")
+
+        manager = MagicMock()
+        manager.get_daily_data.side_effect = AssertionError(
+            "should not fetch — DB already has enough data"
+        )
+
+        cache_token = set_candidate_pick_cache({})
+        try:
+            with patch("src.services.stock_history_cache.get_db", return_value=db):
+                first_df, first_src = load_recent_history_df(
+                    "600519", days=60, target_date=target_date,
+                    fetcher_manager=manager,
+                )
+                second_df, second_src = load_recent_history_df(
+                    "600519", days=120, target_date=target_date,
+                    fetcher_manager=manager,
+                )
+        finally:
+            reset_candidate_pick_cache(cache_token)
+
+        self.assertEqual(len(first_df), 60)
+        self.assertEqual(len(second_df), 120)
+        manager.get_daily_data.assert_not_called()
+
+    def test_candidate_pick_cache_serves_smaller_window_from_cached_superset(self) -> None:
+        """先 240 日再 60 日：第二次从 superset 裁剪，零 DB 读。"""
+        from unittest.mock import patch
+
+        target_date = date(2026, 4, 16)
+        db = _DummyDB()
+        db.seed("600519", AGENT_HISTORY_BASELINE_DAYS, end_date=target_date, source="seed")
+
+        calls: list = []
+        real_get_latest = db.get_latest_data
+        real_get_range = db.get_data_range
+
+        def tracking_get_latest(code, days=2):
+            calls.append(("latest", code, days))
+            return real_get_latest(code, days=days)
+
+        def tracking_get_range(code, start_date, end_date):
+            calls.append(("range", code, start_date, end_date))
+            return real_get_range(code, start_date, end_date)
+
+        db.get_latest_data = tracking_get_latest  # type: ignore
+        db.get_data_range = tracking_get_range    # type: ignore
+
+        cache_token = set_candidate_pick_cache({})
+        try:
+            with patch("src.services.stock_history_cache.get_db", return_value=db):
+                bars_big, src_big, code_big = load_recent_bars_from_db(
+                    "600519", AGENT_HISTORY_BASELINE_DAYS, target_date=target_date,
+                )
+                calls.clear()
+                bars_small, src_small, code_small = load_recent_bars_from_db(
+                    "600519", 60, target_date=target_date,
+                )
+        finally:
+            reset_candidate_pick_cache(cache_token)
+
+        self.assertEqual(len(bars_big), AGENT_HISTORY_BASELINE_DAYS)
+        self.assertEqual(len(bars_small), 60)
+        self.assertEqual(calls, [])
+        self.assertEqual(
+            getattr(bars_small[-1], "date", None), target_date,
+        )
+
+    def test_candidate_pick_cache_refetches_when_lookup_window_insufficient(self) -> None:
+        """白盒契约回归锁（不对应生产调用路径）：cached_lookup_days < 当前
+        lookup_days 时必须 fall through 重新 rank，而非静默返回短快照。
+        """
+        from unittest.mock import patch
+
+        target_date = date(2026, 4, 16)
+        db = _DummyDB()
+        db.seed("600519", AGENT_HISTORY_BASELINE_DAYS, end_date=target_date, source="seed")
+
+        short_bars = db.get_data_range(
+            "600519",
+            target_date - timedelta(days=29),
+            target_date,
+        )
+        self.assertEqual(len(short_bars), 30)
+
+        calls: list = []
+        real_get_range = db.get_data_range
+
+        def tracking_get_range(code, start_date, end_date):
+            calls.append(("range", code))
+            return real_get_range(code, start_date, end_date)
+
+        db.get_data_range = tracking_get_range  # type: ignore
+
+        cache_token = set_candidate_pick_cache({})
+        try:
+            canonical = _normalize_cache_code("600519")
+            cache_dict = get_candidate_pick_cache()
+            assert cache_dict is not None
+            cache_dict[(canonical, target_date)] = (
+                list(short_bars), "seed", canonical, 30,
+            )
+
+            with patch("src.services.stock_history_cache.get_db", return_value=db):
+                bars, src, code = load_recent_bars_from_db(
+                    "600519", 60, target_date=target_date,
+                )
+        finally:
+            reset_candidate_pick_cache(cache_token)
+
+        self.assertGreater(len(calls), 0, "should have re-ranked via DB reads")
+        self.assertEqual(len(bars), 60)
+        updated_entry = cache_dict.get((canonical, target_date))
+        self.assertIsNotNone(updated_entry)
+        self.assertEqual(updated_entry[3], AGENT_HISTORY_BASELINE_DAYS)  # type: ignore[index]
 
 
 if __name__ == "__main__":

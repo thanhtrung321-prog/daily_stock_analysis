@@ -35,7 +35,9 @@ _agent_frozen_target_date: contextvars.ContextVar[Optional[date]] = contextvars.
 # 的结果缓存。作用域与 `_agent_frozen_target_date` 对齐，由同一个 try/finally 负责
 # set 空 dict / reset，跨 pipeline 运行通过 ContextVar 天然隔离，异常退出也能
 # 自动释放。
-_CandidatePickCacheType = Dict[Tuple[str, date], Tuple[List[object], str, str]]
+# Value 元组第 4 字段 ``cached_lookup_days`` 记录写入时 rank loop 查询的窗口深度，
+# 命中条件依赖它避免跨窗口深度退化（见 #1066 follow-up reviewer blocker）。
+_CandidatePickCacheType = Dict[Tuple[str, date], Tuple[List[object], str, str, int]]
 _candidate_pick_cache: contextvars.ContextVar[Optional[_CandidatePickCacheType]] = (
     contextvars.ContextVar("candidate_pick_cache", default=None)
 )
@@ -245,10 +247,18 @@ def load_recent_bars_from_db(
     call into this function so their candidate-picking semantics stay in
     lockstep (4-candidate rank via :func:`rank_history_bars`).
 
-    The same per-analysis candidate-pick cache (installed by
-    :func:`set_candidate_pick_cache` during :func:`_analyze_with_agent`) is
-    consulted here to avoid re-ranking the same ``(canonical_code, target_date,
-    days)`` tuple multiple times within a single agent analysis.
+    When a per-analysis candidate-pick cache is installed (Agent path), the
+    rank result is cached as an **un-trimmed superset** keyed on
+    ``(canonical_code, resolved_target)``.  Each cache entry carries a
+    ``cached_lookup_days`` field recording the DB query window depth used at
+    write time; a hit is only valid when ``cached_lookup_days >= lookup_days``
+    for the current call, preventing a small-window entry from silently
+    short-circuiting a later large-window request.  When the condition is not
+    met the entry is left in place and simply overwritten after a fresh rank
+    (no pop-then-set).
+
+    ``len(cached_bars) < cached_lookup_days`` is normal — it only means the
+    DB does not hold that many rows, not a cache defect.
     """
     db = get_db()
     requested_days = _normalize_days(days)
@@ -257,26 +267,32 @@ def load_recent_bars_from_db(
     # trading_calendar fallback），避免未来 target_date=None + Agent
     # ContextVar 场景下缓存 key 和失效 key 错位（见 #1066 follow-up P2）。
     resolved_target = _resolve_expected_target_date(stock_code, target_date)
-
-    # Per-analysis candidate cache lookup. Key on canonical code + resolved
-    # target date so different days within the same target date can reuse
-    # the "which candidate code won" decision (but the bars list itself still
-    # reflects the request's ``requested_days`` trim on the wins).
     canonical_code = _normalize_cache_code(stock_code)
+
     cache = get_candidate_pick_cache()
+    # Agent 路径（cache 已安装）：放大 lookup 至 AGENT_HISTORY_BASELINE_DAYS，
+    # 使同一次分析内不同 days 的调用共享 superset；非 Agent 路径保持
+    # requested_days，避免无辜查询放大。
+    lookup_days = (
+        max(requested_days, AGENT_HISTORY_BASELINE_DAYS)
+        if cache is not None
+        else requested_days
+    )
+
     cache_key: Optional[Tuple[str, date]] = None
     if cache is not None:
         cache_key = (canonical_code, resolved_target)
         cached_entry = cache.get(cache_key)
         if cached_entry is not None:
-            cached_bars, cached_source, cached_code = cached_entry
-            # Honour the current call's requested_days trim on a shared bars
-            # snapshot; callers with smaller days do not need a re-rank.
-            if len(cached_bars) > requested_days:
-                trimmed = list(cached_bars[-requested_days:])
-            else:
-                trimmed = list(cached_bars)
-            return trimmed, cached_source, cached_code
+            cached_bars, cached_source, cached_code, cached_lookup = cached_entry
+            if cached_lookup >= lookup_days:
+                if len(cached_bars) > requested_days:
+                    trimmed = list(cached_bars[-requested_days:])
+                else:
+                    trimmed = list(cached_bars)
+                return trimmed, cached_source, cached_code
+            # cached_lookup < lookup_days: fall through 重新 rank；末端
+            # cache[cache_key] = ... 直接覆盖旧 entry，不提前 pop。
 
     best_bars: List[object] = []
     best_code = canonical_code
@@ -284,14 +300,14 @@ def load_recent_bars_from_db(
     for code in _candidate_codes(stock_code):
         try:
             if target_date is None:
-                bars = list(reversed(db.get_latest_data(code, days=requested_days)))
+                bars = list(reversed(db.get_latest_data(code, days=lookup_days)))
             else:
                 start_date = resolved_target - timedelta(
-                    days=max(requested_days * 3, AGENT_HISTORY_BASELINE_DAYS + 30)
+                    days=max(lookup_days * 3, AGENT_HISTORY_BASELINE_DAYS + 30)
                 )
                 bars = db.get_data_range(code, start_date, resolved_target)
-                if len(bars) > requested_days:
-                    bars = bars[-requested_days:]
+                if len(bars) > lookup_days:
+                    bars = bars[-lookup_days:]
         except Exception as exc:
             logger.debug("load_recent_bars_from_db(%s): DB lookup failed for %s: %s", stock_code, code, exc)
             continue
@@ -302,8 +318,13 @@ def load_recent_bars_from_db(
 
     result_source = _infer_source(best_bars)
     if cache is not None and cache_key is not None:
-        cache[cache_key] = (list(best_bars), result_source, best_code)
-    return best_bars, result_source, best_code
+        cache[cache_key] = (list(best_bars), result_source, best_code, lookup_days)
+
+    if len(best_bars) > requested_days:
+        result_bars = list(best_bars[-requested_days:])
+    else:
+        result_bars = list(best_bars)
+    return result_bars, result_source, best_code
 
 
 # Legacy alias: keep the private-looking name so callers that imported it
