@@ -166,7 +166,9 @@ class SystemConfigServiceTestCase(unittest.TestCase):
             f"DATABASE_PATH={self.temp_dir.name}/setup-smoke.db",
         )
         mock_pipeline = mock_pipeline_cls.return_value
-        mock_pipeline.run.return_value = [Mock(success=True)]
+        mock_pipeline.run.return_value = []
+        mock_pipeline._resolve_resume_target_date.return_value = "2026-04-25"
+        mock_pipeline.db.has_today_data.return_value = True
 
         result = self.service.run_setup_smoke()
 
@@ -176,6 +178,7 @@ class SystemConfigServiceTestCase(unittest.TestCase):
             dry_run=True,
             send_notification=False,
         )
+        mock_pipeline.db.has_today_data.assert_called_once_with("600519", "2026-04-25")
 
     def test_export_desktop_env_returns_raw_text(self) -> None:
         self.env_path.write_text(

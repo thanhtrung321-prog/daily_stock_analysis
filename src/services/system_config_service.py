@@ -311,6 +311,11 @@ class SystemConfigService:
         if result and getattr(result, "success", False):
             return self._smoke_payload(True, "首次试跑通过", error_code=None, next_step="现在可以回到首页发起正式分析", resolved_stock_code=resolved_stock_code, summary=f"已完成 {resolved_stock_code} 的轻量数据抓取校验，未生成正式报告。", setup_status=setup_status)
 
+        if result is None:
+            target_date = pipeline._resolve_resume_target_date(resolved_stock_code)
+            if pipeline.db.has_today_data(resolved_stock_code, target_date):
+                return self._smoke_payload(True, "首次试跑通过", error_code=None, next_step="现在可以回到首页发起正式分析", resolved_stock_code=resolved_stock_code, summary=f"已完成 {resolved_stock_code} 的轻量数据抓取校验，未生成正式报告。", setup_status=setup_status)
+
         error_message = getattr(result, "error_message", None) or "轻量试跑失败，请检查数据源或股票代码配置"
         return self._smoke_payload(False, "首次试跑失败", error_code="dry_run_failed", next_step="请确认股票代码可用、网络可访问并重新试跑", resolved_stock_code=resolved_stock_code, summary=error_message, setup_status=setup_status)
 
