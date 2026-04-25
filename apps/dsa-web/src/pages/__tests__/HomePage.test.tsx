@@ -324,6 +324,63 @@ describe('HomePage', () => {
     });
   });
 
+  it('tests the channel that actually owns the current primary model', async () => {
+    vi.mocked(historyApi.getList).mockResolvedValue({
+      total: 0,
+      page: 1,
+      limit: 20,
+      items: [],
+    });
+    vi.mocked(systemConfigApi.getConfig).mockResolvedValue({
+      configVersion: 'v1',
+      maskToken: '******',
+      updatedAt: '2026-03-21T00:00:00Z',
+      items: [
+        { key: 'LLM_CHANNELS', value: 'primary,deepseek', rawValueExists: true, isMasked: false },
+        { key: 'LLM_PRIMARY_PROTOCOL', value: 'openai', rawValueExists: true, isMasked: false },
+        { key: 'LLM_PRIMARY_API_KEY', value: '******', rawValueExists: true, isMasked: true },
+        { key: 'LLM_PRIMARY_MODELS', value: 'gpt-4o-mini', rawValueExists: true, isMasked: false },
+        { key: 'LLM_DEEPSEEK_PROTOCOL', value: 'deepseek', rawValueExists: true, isMasked: false },
+        { key: 'LLM_DEEPSEEK_API_KEY', value: '******', rawValueExists: true, isMasked: true },
+        { key: 'LLM_DEEPSEEK_MODELS', value: 'deepseek-v4-flash', rawValueExists: true, isMasked: false },
+        { key: 'LITELLM_MODEL', value: 'deepseek/deepseek-v4-flash', rawValueExists: true, isMasked: false },
+      ],
+      setupStatus: {
+        isComplete: false,
+        readyForSmoke: false,
+        requiredMissingKeys: ['stock_list'],
+        nextStepKey: 'stock_list',
+        checks: [
+          {
+            key: 'stock_list',
+            title: '自选股',
+            category: 'base',
+            required: true,
+            status: 'needs_action',
+            message: '当前自选股列表为空',
+            nextAction: '请先添加股票',
+          },
+        ],
+      },
+    });
+
+    render(
+      <MemoryRouter>
+        <HomePage />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(await screen.findByRole('button', { name: '测试 LLM' }));
+
+    await waitFor(() => {
+      expect(systemConfigApi.testLLMChannel).toHaveBeenCalledWith(expect.objectContaining({
+        name: 'deepseek',
+        protocol: 'deepseek',
+        models: ['deepseek-v4-flash'],
+      }));
+    });
+  });
+
   it('surfaces duplicate task warnings from dashboard submission', async () => {
     vi.mocked(historyApi.getList).mockResolvedValue({
       total: 0,

@@ -106,14 +106,12 @@ class SystemConfigServiceTestCase(unittest.TestCase):
         self.assertTrue(result["success"])
         self.assertEqual(mock_completion.call_args.kwargs["api_key"], "persisted-secret")
 
-    @patch("src.services.system_config_service.Config.get_instance")
     @patch("src.services.system_config_service.setup_env")
     @patch("src.services.system_config_service.Config.reset_instance")
     def test_get_setup_status_uses_persisted_stock_list_without_reloading_runtime(
         self,
         mock_reset_instance,
         mock_setup_env,
-        mock_get_instance,
     ) -> None:
         db_path = Path(self.temp_dir.name) / "setup-status.db"
         self._rewrite_env(
@@ -124,23 +122,6 @@ class SystemConfigServiceTestCase(unittest.TestCase):
         )
         mock_reset_instance.reset_mock()
         mock_setup_env.reset_mock()
-        mock_get_instance.return_value = Mock(
-            litellm_model="gemini/gemini-2.5-flash",
-            agent_litellm_model="",
-            feishu_webhook_url="",
-            telegram_bot_token="",
-            telegram_chat_id="",
-            email_sender="",
-            email_password="",
-            email_receivers=[],
-            pushplus_token="",
-            serverchan3_sendkey="",
-            custom_webhook_urls=[],
-            discord_webhook_url="",
-            slack_webhook_url="",
-            pushover_user_key="",
-            pushover_api_token="",
-        )
 
         status = self.service.get_setup_status()
 
@@ -151,6 +132,30 @@ class SystemConfigServiceTestCase(unittest.TestCase):
         self.assertFalse(db_path.exists())
         mock_reset_instance.assert_not_called()
         mock_setup_env.assert_not_called()
+
+    @patch("litellm.completion")
+    def test_test_llm_channel_resolves_masked_saved_openai_legacy_key(self, mock_completion) -> None:
+        self._rewrite_env(
+            "OPENAI_API_KEY=persisted-secret",
+            "OPENAI_BASE_URL=https://api.example.com/v1",
+            "OPENAI_MODEL=minimax/MiniMax-M1",
+            "LITELLM_MODEL=minimax/MiniMax-M1",
+        )
+        mock_completion.return_value = Mock(
+            choices=[Mock(message=Mock(content="OK", content_blocks=None), content_blocks=None)]
+        )
+
+        result = self.service.test_llm_channel(
+            name="openai",
+            protocol="openai",
+            base_url="https://api.example.com/v1",
+            api_key="******",
+            models=["minimax/MiniMax-M1"],
+            mask_token="******",
+        )
+
+        self.assertTrue(result["success"])
+        self.assertEqual(mock_completion.call_args.kwargs["api_key"], "persisted-secret")
 
     @patch("src.core.pipeline.StockAnalysisPipeline")
     def test_run_setup_smoke_runs_dry_run_without_formal_report(self, mock_pipeline_cls) -> None:

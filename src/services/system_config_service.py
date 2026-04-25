@@ -248,12 +248,10 @@ class SystemConfigService:
     def get_setup_status(self) -> Dict[str, Any]:
         """Return the first-run setup completion status for the current config."""
         effective_map = self._read_persisted_config_map()
-        runtime_config = self._load_runtime_config()
-
-        llm_check = self._build_primary_llm_check(runtime_config=runtime_config)
-        agent_check = self._build_agent_llm_check(effective_map=effective_map, runtime_config=runtime_config, llm_check=llm_check)
+        llm_check = self._build_primary_llm_check(effective_map=effective_map)
+        agent_check = self._build_agent_llm_check(effective_map=effective_map, llm_check=llm_check)
         stock_check = self._build_stock_list_check(effective_map=effective_map)
-        notification_check = self._build_notification_check(runtime_config=runtime_config)
+        notification_check = self._build_notification_check(effective_map=effective_map)
         storage_check = self._build_storage_check(effective_map=effective_map)
 
         checks = [
@@ -928,26 +926,48 @@ class SystemConfigService:
     def _smoke_payload(success: bool, message: str, *, error_code: Optional[str], next_step: Optional[str], resolved_stock_code: Optional[str], summary: str, setup_status: Dict[str, Any]) -> Dict[str, Any]:
         return {"success": success, "message": message, "error_code": error_code, "next_step": next_step, "resolved_stock_code": resolved_stock_code, "summary": summary, "setup_status": setup_status}
 
-    def _build_primary_llm_check(self, *, runtime_config: Config) -> Dict[str, Any]:
-        active_model = (getattr(runtime_config, "litellm_model", "") or "").strip()
+    def _build_primary_llm_check(self, *, effective_map: Dict[str, str]) -> Dict[str, Any]:
+        active_model, source = self._resolve_primary_model_from_map(effective_map)
         if active_model:
-            return self._setup_check("llm_primary", "LLM 主渠道", "ai_model", True, "configured", f"当前可用主模型：{active_model}")
+            if source == "llm_channels":
+                message = f"当前可用主模型：{active_model}（来自已启用渠道）"
+            elif source == "legacy_env":
+                message = f"当前可用主模型：{active_model}（来自 legacy API Key）"
+            elif source == "litellm_config":
+                message = f"已检测到 LiteLLM 路由配置，共声明 {len(self._collect_yaml_models_from_map(effective_map))} 个模型"
+            else:
+                message = f"当前可用主模型：{active_model}"
+            return self._setup_check("llm_primary", "LLM 主渠道", "ai_model", True, "configured", message)
         return self._setup_check("llm_primary", "LLM 主渠道", "ai_model", True, "needs_action", "尚未检测到可用的主模型配置", "请先配置至少一个可用的模型渠道或主模型")
 
     def _build_agent_llm_check(
         self,
         *,
         effective_map: Dict[str, str],
-        runtime_config: Config,
         llm_check: Dict[str, Any],
     ) -> Dict[str, Any]:
         if llm_check["status"] not in {"configured", "inherited"}:
             return self._setup_check("llm_agent", "Agent 渠道", "agent", True, "needs_action", "Agent 当前还没有可继承的主模型", "请先完成主模型配置")
 
+        primary_model, _ = self._resolve_primary_model_from_map(effective_map)
         configured_agent_model = (effective_map.get("AGENT_LITELLM_MODEL") or "").strip()
         if not configured_agent_model:
-            return self._setup_check("llm_agent", "Agent 渠道", "agent", True, "inherited", f"未单独配置，默认继承主模型：{getattr(runtime_config, 'litellm_model', '')}")
-        return self._setup_check("llm_agent", "Agent 渠道", "agent", True, "configured", f"当前 Agent 主模型：{getattr(runtime_config, 'agent_litellm_model', '') or configured_agent_model}")
+            return self._setup_check("llm_agent", "Agent 渠道", "agent", True, "inherited", f"未单独配置，默认继承主模型：{primary_model}")
+
+        available_models = set(
+            self._collect_yaml_models_from_map(effective_map)
+            or self._collect_llm_channel_models_from_map(effective_map)
+        )
+        normalized_agent_model = normalize_agent_litellm_model(
+            configured_agent_model,
+            configured_models=available_models,
+        )
+        if normalized_agent_model and (
+            normalized_agent_model in available_models
+            or self._has_runtime_source_for_model(normalized_agent_model, effective_map)
+        ):
+            return self._setup_check("llm_agent", "Agent 渠道", "agent", True, "configured", f"当前 Agent 主模型：{normalized_agent_model}")
+        return self._setup_check("llm_agent", "Agent 渠道", "agent", True, "needs_action", "Agent 主模型当前不可用", "请检查 AGENT_LITELLM_MODEL 是否仍对应已启用渠道或匹配的 API Key")
 
     @staticmethod
     def _build_stock_list_check(*, effective_map: Dict[str, str]) -> Dict[str, Any]:
@@ -963,18 +983,22 @@ class SystemConfigService:
         return SystemConfigService._setup_check("stock_list", "自选股", "base", True, "needs_action", "当前自选股列表为空", "请至少添加 1 只股票用于首次试跑")
 
     @staticmethod
-    def _build_notification_check(*, runtime_config: Config) -> Dict[str, Any]:
+    def _build_notification_check(*, effective_map: Dict[str, str]) -> Dict[str, Any]:
         configured = any(
             [
-                bool(getattr(runtime_config, "feishu_webhook_url", "")),
-                bool(getattr(runtime_config, "telegram_bot_token", "") and getattr(runtime_config, "telegram_chat_id", "")),
-                bool(getattr(runtime_config, "email_sender", "") and getattr(runtime_config, "email_password", "") and getattr(runtime_config, "email_receivers", [])),
-                bool(getattr(runtime_config, "pushplus_token", "")),
-                bool(getattr(runtime_config, "serverchan3_sendkey", "")),
-                bool(getattr(runtime_config, "custom_webhook_urls", [])),
-                bool(getattr(runtime_config, "discord_webhook_url", "")),
-                bool(getattr(runtime_config, "slack_webhook_url", "")),
-                bool(getattr(runtime_config, "pushover_user_key", "") and getattr(runtime_config, "pushover_api_token", "")),
+                bool((effective_map.get("FEISHU_WEBHOOK_URL") or "").strip()),
+                bool((effective_map.get("TELEGRAM_BOT_TOKEN") or "").strip() and (effective_map.get("TELEGRAM_CHAT_ID") or "").strip()),
+                bool(
+                    (effective_map.get("EMAIL_SENDER") or "").strip()
+                    and (effective_map.get("EMAIL_PASSWORD") or "").strip()
+                    and any(receiver.strip() for receiver in (effective_map.get("EMAIL_RECEIVERS") or "").split(","))
+                ),
+                bool((effective_map.get("PUSHPLUS_TOKEN") or "").strip()),
+                bool((effective_map.get("SERVERCHAN3_SENDKEY") or "").strip()),
+                bool(any(url.strip() for url in (effective_map.get("CUSTOM_WEBHOOK_URLS") or "").split(","))),
+                bool((effective_map.get("DISCORD_WEBHOOK_URL") or "").strip()),
+                bool((effective_map.get("SLACK_WEBHOOK_URL") or "").strip()),
+                bool((effective_map.get("PUSHOVER_USER_KEY") or "").strip() and (effective_map.get("PUSHOVER_API_TOKEN") or "").strip()),
             ]
         )
         return SystemConfigService._setup_check(
@@ -1018,6 +1042,80 @@ class SystemConfigService:
             return SystemConfigService._setup_check("storage", "数据库 / 本地存储", "system", True, "configured", detail)
         except Exception as exc:
             return SystemConfigService._setup_check("storage", "数据库 / 本地存储", "system", True, "needs_action", f"本地数据库不可用：{exc}", "请检查 DATABASE_PATH 指向的目录是否可写")
+
+    @classmethod
+    def _resolve_primary_model_from_map(cls, effective_map: Dict[str, str]) -> Tuple[str, str]:
+        explicit_primary_model = (effective_map.get("LITELLM_MODEL") or "").strip()
+        available_models = cls._collect_yaml_models_from_map(effective_map)
+        if available_models:
+            if explicit_primary_model:
+                if explicit_primary_model in set(available_models) or cls._has_runtime_source_for_model(
+                    explicit_primary_model,
+                    effective_map,
+                ):
+                    return explicit_primary_model, "litellm_config"
+                return "", ""
+            return available_models[0], "litellm_config"
+
+        channel_models = cls._collect_llm_channel_models_from_map(effective_map)
+        if explicit_primary_model:
+            if explicit_primary_model in set(channel_models) or cls._has_runtime_source_for_model(
+                explicit_primary_model,
+                effective_map,
+            ):
+                return explicit_primary_model, "explicit"
+            return "", ""
+
+        if channel_models:
+            return channel_models[0], "llm_channels"
+
+        gemini_keys = [
+            key.strip()
+            for key in ((effective_map.get("GEMINI_API_KEYS") or "").split(","))
+            if key.strip()
+        ]
+        if not gemini_keys and (effective_map.get("GEMINI_API_KEY") or "").strip():
+            gemini_keys = [(effective_map.get("GEMINI_API_KEY") or "").strip()]
+        if gemini_keys:
+            return f"gemini/{(effective_map.get('GEMINI_MODEL') or 'gemini-3-flash-preview').strip()}", "legacy_env"
+
+        anthropic_keys = [
+            key.strip()
+            for key in ((effective_map.get("ANTHROPIC_API_KEYS") or "").split(","))
+            if key.strip()
+        ]
+        if not anthropic_keys and (effective_map.get("ANTHROPIC_API_KEY") or "").strip():
+            anthropic_keys = [(effective_map.get("ANTHROPIC_API_KEY") or "").strip()]
+        if anthropic_keys:
+            return (
+                f"anthropic/{(effective_map.get('ANTHROPIC_MODEL') or 'claude-3-5-sonnet-20241022').strip()}",
+                "legacy_env",
+            )
+
+        deepseek_keys = [
+            key.strip()
+            for key in ((effective_map.get("DEEPSEEK_API_KEYS") or "").split(","))
+            if key.strip()
+        ]
+        if not deepseek_keys and (effective_map.get("DEEPSEEK_API_KEY") or "").strip():
+            deepseek_keys = [(effective_map.get("DEEPSEEK_API_KEY") or "").strip()]
+        if deepseek_keys:
+            return "deepseek/deepseek-chat", "legacy_env"
+
+        openai_keys = [
+            key.strip()
+            for key in ((effective_map.get("OPENAI_API_KEYS") or "").split(","))
+            if key.strip()
+        ]
+        if not openai_keys:
+            legacy_openai_key = (effective_map.get("AIHUBMIX_KEY") or "").strip() or (effective_map.get("OPENAI_API_KEY") or "").strip()
+            if legacy_openai_key:
+                openai_keys = [legacy_openai_key]
+        if openai_keys:
+            openai_model = (effective_map.get("OPENAI_MODEL") or "gpt-4o-mini").strip()
+            return (openai_model if "/" in openai_model else f"openai/{openai_model}"), "legacy_env"
+
+        return "", ""
 
     @staticmethod
     def _resolve_setup_stock(raw_value: str) -> Tuple[Optional[str], Optional[str]]:

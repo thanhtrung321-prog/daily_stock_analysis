@@ -25,6 +25,78 @@ function splitCsv(value: string) {
   return value.split(',').map((item) => item.trim()).filter(Boolean);
 }
 
+function normalizeProtocol(value: string) {
+  const normalized = value.trim().toLowerCase().replace(/-/g, '_');
+  if (normalized === 'vertex' || normalized === 'vertexai') return 'vertex_ai';
+  if (normalized === 'claude') return 'anthropic';
+  if (normalized === 'google') return 'gemini';
+  return normalized || 'openai';
+}
+
+function normalizeModelForRuntime(model: string, protocol: string) {
+  const trimmed = model.trim();
+  if (!trimmed) return '';
+  if (trimmed.includes('/')) return trimmed;
+  return `${normalizeProtocol(protocol)}/${trimmed}`;
+}
+
+function resolvePrimaryModel(items: Map<string, string>) {
+  const explicit = (items.get('LITELLM_MODEL') || '').trim();
+  if (explicit) return explicit;
+
+  const channelName = splitCsv(items.get('LLM_CHANNELS') || '').find((name) => {
+    const prefix = `LLM_${name.toUpperCase()}`;
+    return (items.get(`${prefix}_ENABLED`) || 'true').trim().toLowerCase() !== 'false'
+      && splitCsv(items.get(`${prefix}_MODELS`) || '').length > 0;
+  });
+  if (channelName) {
+    const prefix = `LLM_${channelName.toUpperCase()}`;
+    const protocol = items.get(`${prefix}_PROTOCOL`) || 'openai';
+    const model = splitCsv(items.get(`${prefix}_MODELS`) || '')[0] || '';
+    return normalizeModelForRuntime(model, protocol);
+  }
+
+  if ((items.get('GEMINI_API_KEYS') || items.get('GEMINI_API_KEY') || '').trim()) {
+    return `gemini/${(items.get('GEMINI_MODEL') || 'gemini-3-flash-preview').trim()}`;
+  }
+  if ((items.get('ANTHROPIC_API_KEYS') || items.get('ANTHROPIC_API_KEY') || '').trim()) {
+    return `anthropic/${(items.get('ANTHROPIC_MODEL') || 'claude-3-5-sonnet-20241022').trim()}`;
+  }
+  if ((items.get('DEEPSEEK_API_KEYS') || items.get('DEEPSEEK_API_KEY') || '').trim()) {
+    return 'deepseek/deepseek-chat';
+  }
+  if ((items.get('OPENAI_API_KEYS') || items.get('OPENAI_API_KEY') || items.get('AIHUBMIX_KEY') || '').trim()) {
+    const model = (items.get('OPENAI_MODEL') || 'gpt-4o-mini').trim();
+    return model.includes('/') ? model : `openai/${model}`;
+  }
+
+  return '';
+}
+
+function findMatchingChannelForModel(itemMap: Map<string, string>, primaryModel: string) {
+  const normalizedPrimaryModel = primaryModel.trim().toLowerCase();
+  if (!normalizedPrimaryModel) return null;
+
+  for (const name of splitCsv(itemMap.get('LLM_CHANNELS') || '')) {
+    const prefix = `LLM_${name.toUpperCase()}`;
+    if ((itemMap.get(`${prefix}_ENABLED`) || 'true').trim().toLowerCase() === 'false') continue;
+    const protocol = itemMap.get(`${prefix}_PROTOCOL`) || 'openai';
+    const baseUrl = itemMap.get(`${prefix}_BASE_URL`) || '';
+    const models = splitCsv(itemMap.get(`${prefix}_MODELS`) || '');
+    const matchedModel = models.find((model) => normalizeModelForRuntime(model, protocol).toLowerCase() === normalizedPrimaryModel);
+    if (!matchedModel) continue;
+    return {
+      name,
+      protocol,
+      baseUrl,
+      apiKey: itemMap.get(`${prefix}_API_KEYS`) || itemMap.get(`${prefix}_API_KEY`) || '',
+      models: [matchedModel],
+    };
+  }
+
+  return null;
+}
+
 function looksLikeStockCode(value: string) {
   const text = value.trim();
   return /^[A-Za-z]{1,5}$/.test(text) || /^[A-Za-z]{0,2}\d{3,6}(?:\.[A-Za-z]{2})?$/.test(text) || /^\d{5}\.HK$/i.test(text);
@@ -32,65 +104,64 @@ function looksLikeStockCode(value: string) {
 
 function buildSetupLLMPayload(items: SystemConfigItem[], maskToken: string) {
   const itemMap = new Map(items.map((item) => [item.key, String(item.value ?? '')]));
-  const liteLLMModel = (itemMap.get('LITELLM_MODEL') || '').trim();
-  const normalizedLiteLLMModel = liteLLMModel.toLowerCase();
-  const liteLLMProvider =
-    normalizedLiteLLMModel.startsWith('gemini') || normalizedLiteLLMModel.startsWith('google/')
-      ? 'gemini'
-      : normalizedLiteLLMModel.startsWith('deepseek')
-        ? 'deepseek'
-        : normalizedLiteLLMModel.startsWith('gpt-')
-            || normalizedLiteLLMModel.startsWith('openai/')
-            || normalizedLiteLLMModel.startsWith('o1')
-            || normalizedLiteLLMModel.startsWith('o3')
-            || normalizedLiteLLMModel.startsWith('chatgpt')
-          ? 'openai'
-          : '';
-  const channelName = splitCsv(itemMap.get('LLM_CHANNELS') || '').find((name) => {
-    const prefix = `LLM_${name.toUpperCase()}`;
-    return (itemMap.get(`${prefix}_ENABLED`) || 'true').trim().toLowerCase() !== 'false';
-  });
-  if (channelName) {
-    const prefix = `LLM_${channelName.toUpperCase()}`;
+  const primaryModel = resolvePrimaryModel(itemMap);
+  const normalizedPrimaryModel = primaryModel.toLowerCase();
+  const matchingChannel = findMatchingChannelForModel(itemMap, primaryModel);
+  if (matchingChannel) {
     return {
-      name: channelName,
-      protocol: itemMap.get(`${prefix}_PROTOCOL`) || 'openai',
-      baseUrl: itemMap.get(`${prefix}_BASE_URL`) || '',
-      apiKey: itemMap.get(`${prefix}_API_KEYS`) || itemMap.get(`${prefix}_API_KEY`) || '',
-      models: splitCsv(itemMap.get(`${prefix}_MODELS`) || '').filter(Boolean),
+      ...matchingChannel,
       enabled: true,
       maskToken,
     };
   }
-  if ((itemMap.get('GEMINI_API_KEY') || '').trim()) {
+
+  if (normalizedPrimaryModel.startsWith('gemini/') && (itemMap.get('GEMINI_API_KEYS') || itemMap.get('GEMINI_API_KEY') || '').trim()) {
     return {
       name: 'gemini',
       protocol: 'gemini',
       baseUrl: '',
-      apiKey: itemMap.get('GEMINI_API_KEY') || '',
-      models: [liteLLMProvider === 'gemini' && liteLLMModel ? liteLLMModel : 'gemini-2.5-flash'],
+      apiKey: itemMap.get('GEMINI_API_KEYS') || itemMap.get('GEMINI_API_KEY') || '',
+      models: [primaryModel],
       enabled: true,
       maskToken,
     };
   }
-  if ((itemMap.get('DEEPSEEK_API_KEY') || '').trim()) {
+  if (normalizedPrimaryModel.startsWith('deepseek/') && (itemMap.get('DEEPSEEK_API_KEYS') || itemMap.get('DEEPSEEK_API_KEY') || '').trim()) {
     return {
       name: 'deepseek',
       protocol: 'deepseek',
       baseUrl: 'https://api.deepseek.com',
-      apiKey: itemMap.get('DEEPSEEK_API_KEY') || '',
-      models: [liteLLMProvider === 'deepseek' && liteLLMModel ? liteLLMModel : 'deepseek-chat'],
+      apiKey: itemMap.get('DEEPSEEK_API_KEYS') || itemMap.get('DEEPSEEK_API_KEY') || '',
+      models: [primaryModel],
       enabled: true,
       maskToken,
     };
   }
-  if ((itemMap.get('OPENAI_API_KEY') || itemMap.get('AIHUBMIX_KEY') || '').trim()) {
+  if (normalizedPrimaryModel.startsWith('anthropic/') && (itemMap.get('ANTHROPIC_API_KEYS') || itemMap.get('ANTHROPIC_API_KEY') || '').trim()) {
+    return {
+      name: 'anthropic',
+      protocol: 'anthropic',
+      baseUrl: '',
+      apiKey: itemMap.get('ANTHROPIC_API_KEYS') || itemMap.get('ANTHROPIC_API_KEY') || '',
+      models: [primaryModel],
+      enabled: true,
+      maskToken,
+    };
+  }
+  if (
+    normalizedPrimaryModel
+    && !normalizedPrimaryModel.startsWith('gemini/')
+    && !normalizedPrimaryModel.startsWith('deepseek/')
+    && !normalizedPrimaryModel.startsWith('anthropic/')
+    && !normalizedPrimaryModel.startsWith('ollama/')
+    && (itemMap.get('OPENAI_API_KEYS') || itemMap.get('OPENAI_API_KEY') || itemMap.get('AIHUBMIX_KEY') || '').trim()
+  ) {
     return {
       name: 'openai',
       protocol: 'openai',
       baseUrl: itemMap.get('OPENAI_BASE_URL') || '',
-      apiKey: itemMap.get('OPENAI_API_KEY') || itemMap.get('AIHUBMIX_KEY') || '',
-      models: [liteLLMProvider === 'openai' && liteLLMModel ? liteLLMModel : 'gpt-4o-mini'],
+      apiKey: itemMap.get('OPENAI_API_KEYS') || itemMap.get('OPENAI_API_KEY') || itemMap.get('AIHUBMIX_KEY') || '',
+      models: [primaryModel],
       enabled: true,
       maskToken,
     };
