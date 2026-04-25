@@ -363,6 +363,26 @@ class LLMChannelConfigTestCase(unittest.TestCase):
             0.6,
         )
 
+    def test_kimi_k26_temperature_normalization_uses_non_thinking_yaml_wire_model_without_model_name(self) -> None:
+        model_list = [
+            {
+                "litellm_params": {
+                    "model": "openai/kimi-k2.6",
+                    "api_key": "sk-yaml-value",
+                    "extra_body": {"thinking": {"type": "disabled"}},
+                },
+            }
+        ]
+
+        self.assertAlmostEqual(
+            get_fixed_litellm_temperature("openai/kimi-k2.6", model_list=model_list),
+            0.6,
+        )
+        self.assertAlmostEqual(
+            normalize_litellm_temperature("openai/kimi-k2.6", 0.2, model_list=model_list),
+            0.6,
+        )
+
     @patch("src.config.setup_env")
     @patch.object(Config, "_parse_litellm_yaml", return_value=[])
     def test_local_openai_compatible_channel_defaults_to_openai_protocol(self, _mock_parse_yaml, _mock_setup_env) -> None:

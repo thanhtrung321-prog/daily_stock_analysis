@@ -337,6 +337,9 @@ def _resolve_litellm_model_list_entry(
 
     for entry in model_list:
         model_name = str(entry.get("model_name") or "").strip()
+        if not model_name:
+            params = entry.get("litellm_params", {}) or {}
+            model_name = str(params.get("model") or "").strip()
         if model_name == normalized_model:
             return entry
     return None
