@@ -59,6 +59,22 @@ class SystemConfigServiceTestCase(unittest.TestCase):
         self.assertTrue(items["GEMINI_API_KEY"]["raw_value_exists"])
         self.assertIn("setup_status", payload)
 
+    def test_get_config_preserves_multi_key_mask_shape_for_sensitive_fields(self) -> None:
+        self._rewrite_env(
+            "LLM_CHANNELS=primary",
+            "LLM_PRIMARY_PROTOCOL=openai",
+            "LLM_PRIMARY_API_KEYS=sk-first,sk-second",
+            "LLM_PRIMARY_MODELS=gpt-4o-mini",
+        )
+
+        payload = self.service.get_config(include_schema=False)
+        items = {item["key"]: item for item in payload["items"]}
+
+        self.assertEqual(items["LLM_PRIMARY_API_KEYS"]["value"], "******,******")
+        self.assertTrue(items["LLM_PRIMARY_API_KEYS"]["is_masked"])
+        self.assertTrue(items["LLM_PRIMARY_API_KEYS"]["raw_value_exists"])
+        self.assertNotIn("sk-first", items["LLM_PRIMARY_API_KEYS"]["value"])
+
     @patch("litellm.completion")
     def test_test_llm_channel_resolves_masked_saved_api_key(self, mock_completion) -> None:
         self._rewrite_env(
@@ -83,6 +99,31 @@ class SystemConfigServiceTestCase(unittest.TestCase):
 
         self.assertTrue(result["success"])
         self.assertEqual(mock_completion.call_args.kwargs["api_key"], "persisted-secret")
+
+    @patch("litellm.completion")
+    def test_test_llm_channel_resolves_structured_masked_saved_api_keys(self, mock_completion) -> None:
+        self._rewrite_env(
+            "LLM_CHANNELS=primary",
+            "LLM_PRIMARY_PROTOCOL=openai",
+            "LLM_PRIMARY_BASE_URL=https://api.example.com/v1",
+            "LLM_PRIMARY_API_KEYS=persisted-first,persisted-second",
+            "LLM_PRIMARY_MODELS=gpt-4o-mini",
+        )
+        mock_completion.return_value = Mock(
+            choices=[Mock(message=Mock(content="OK", content_blocks=None), content_blocks=None)]
+        )
+
+        result = self.service.test_llm_channel(
+            name="primary",
+            protocol="openai",
+            base_url="https://api.example.com/v1",
+            api_key="******,******",
+            models=["gpt-4o-mini"],
+            mask_token="******",
+        )
+
+        self.assertTrue(result["success"])
+        self.assertEqual(mock_completion.call_args.kwargs["api_key"], "persisted-first")
 
     @patch("litellm.completion")
     def test_test_llm_channel_resolves_masked_saved_legacy_provider_api_key(self, mock_completion) -> None:
@@ -340,6 +381,35 @@ class SystemConfigServiceTestCase(unittest.TestCase):
         current_map = self.manager.read_config_map()
         self.assertEqual(current_map["STOCK_LIST"], "600519,300750")
         self.assertEqual(current_map["GEMINI_API_KEY"], "secret-key-value")
+
+    def test_update_preserves_structured_masked_multi_key_secret(self) -> None:
+        self._rewrite_env(
+            "STOCK_LIST=600519,000001",
+            "LLM_CHANNELS=primary",
+            "LLM_PRIMARY_PROTOCOL=openai",
+            "LLM_PRIMARY_API_KEYS=sk-first,sk-second",
+            "LLM_PRIMARY_MODELS=gpt-4o-mini",
+        )
+        payload = self.service.get_config(include_schema=False)
+        item_map = {item["key"]: item for item in payload["items"]}
+
+        response = self.service.update(
+            config_version=payload["config_version"],
+            items=[
+                {"key": "LLM_PRIMARY_API_KEYS", "value": item_map["LLM_PRIMARY_API_KEYS"]["value"]},
+                {"key": "STOCK_LIST", "value": "600519,300750"},
+            ],
+            mask_token="******",
+            reload_now=False,
+        )
+
+        self.assertTrue(response["success"])
+        self.assertEqual(response["applied_count"], 1)
+        self.assertEqual(response["skipped_masked_count"], 1)
+
+        current_map = self.manager.read_config_map()
+        self.assertEqual(current_map["LLM_PRIMARY_API_KEYS"], "sk-first,sk-second")
+        self.assertEqual(current_map["STOCK_LIST"], "600519,300750")
 
     def test_validate_reports_invalid_time(self) -> None:
         validation = self.service.validate(items=[{"key": "SCHEDULE_TIME", "value": "25:70"}])

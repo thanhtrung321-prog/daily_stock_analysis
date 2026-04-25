@@ -65,6 +65,30 @@ class SystemConfigApiTestCase(unittest.TestCase):
         self.assertTrue(item_map["GEMINI_API_KEY"]["is_masked"])
         self.assertIn("setup_status", payload)
 
+    def test_get_config_returns_structured_mask_for_multi_key_secret(self) -> None:
+        self.env_path.write_text(
+            "\n".join(
+                [
+                    "STOCK_LIST=600519,000001",
+                    "LLM_CHANNELS=primary",
+                    "LLM_PRIMARY_PROTOCOL=openai",
+                    "LLM_PRIMARY_API_KEYS=sk-first,sk-second",
+                    "LLM_PRIMARY_MODELS=gpt-4o-mini",
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        self.manager = ConfigManager(env_path=self.env_path)
+        self.service = SystemConfigService(manager=self.manager)
+
+        payload = system_config.get_system_config(include_schema=False, service=self.service).model_dump()
+        item_map = {item["key"]: item for item in payload["items"]}
+
+        self.assertEqual(item_map["LLM_PRIMARY_API_KEYS"]["value"], "******,******")
+        self.assertTrue(item_map["LLM_PRIMARY_API_KEYS"]["is_masked"])
+        self.assertNotIn("sk-first", item_map["LLM_PRIMARY_API_KEYS"]["value"])
+
     def test_put_config_updates_secret_and_plain_field(self) -> None:
         current = system_config.get_system_config(include_schema=False, service=self.service).model_dump()
         payload = system_config.update_system_config(
@@ -86,6 +110,45 @@ class SystemConfigApiTestCase(unittest.TestCase):
         env_content = self.env_path.read_text(encoding="utf-8")
         self.assertIn("STOCK_LIST=600519,300750", env_content)
         self.assertIn("GEMINI_API_KEY=new-secret-value", env_content)
+
+    def test_put_config_preserves_structured_masked_multi_key_secret(self) -> None:
+        self.env_path.write_text(
+            "\n".join(
+                [
+                    "STOCK_LIST=600519,000001",
+                    "LLM_CHANNELS=primary",
+                    "LLM_PRIMARY_PROTOCOL=openai",
+                    "LLM_PRIMARY_API_KEYS=sk-first,sk-second",
+                    "LLM_PRIMARY_MODELS=gpt-4o-mini",
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        self.manager = ConfigManager(env_path=self.env_path)
+        self.service = SystemConfigService(manager=self.manager)
+        current = system_config.get_system_config(include_schema=False, service=self.service).model_dump()
+        item_map = {item["key"]: item for item in current["items"]}
+
+        payload = system_config.update_system_config(
+            request=UpdateSystemConfigRequest(
+                config_version=current["config_version"],
+                mask_token="******",
+                reload_now=False,
+                items=[
+                    {"key": "LLM_PRIMARY_API_KEYS", "value": item_map["LLM_PRIMARY_API_KEYS"]["value"]},
+                    {"key": "STOCK_LIST", "value": "600519,300750"},
+                ],
+            ),
+            service=self.service,
+        ).model_dump()
+
+        self.assertEqual(payload["applied_count"], 1)
+        self.assertEqual(payload["skipped_masked_count"], 1)
+
+        env_content = self.env_path.read_text(encoding="utf-8")
+        self.assertIn("LLM_PRIMARY_API_KEYS=sk-first,sk-second", env_content)
+        self.assertIn("STOCK_LIST=600519,300750", env_content)
 
     def test_put_config_returns_conflict_when_version_is_stale(self) -> None:
         with self.assertRaises(HTTPException) as context:

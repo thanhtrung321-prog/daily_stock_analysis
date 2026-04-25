@@ -103,7 +103,41 @@ class SystemConfigService:
             return value, False
         if not bool(field_schema.get("is_sensitive", False)):
             return value, False
-        return mask_token, True
+        return SystemConfigService._build_masked_sensitive_value(value, mask_token), True
+
+    @staticmethod
+    def _build_masked_sensitive_value(value: str, mask_token: str) -> str:
+        """Preserve comma-separated secret shape while masking every populated segment."""
+        if "," not in value:
+            return mask_token
+        return ",".join(
+            mask_token if segment.strip() else ""
+            for segment in value.split(",")
+        )
+
+    @staticmethod
+    def _is_masked_placeholder_value(
+        value: str,
+        mask_token: str,
+        *,
+        current_value: Optional[str] = None,
+    ) -> bool:
+        """Return True when *value* is a masked secret placeholder from the UI."""
+        if value == mask_token:
+            return True
+        if "," not in value:
+            return False
+        masked_segments = [segment.strip() for segment in value.split(",") if segment.strip()]
+        if not masked_segments or any(segment != mask_token for segment in masked_segments):
+            return False
+        if current_value is None:
+            return True
+        current_segments = [
+            segment.strip()
+            for segment in str(current_value).split(",")
+            if segment.strip()
+        ]
+        return bool(current_segments) and len(masked_segments) == len(current_segments)
 
     def _read_persisted_config_map(self) -> Dict[str, str]:
         """Read persisted `.env` values without mutating runtime state."""
@@ -613,6 +647,7 @@ class SystemConfigService:
         if errors:
             raise ConfigValidationError(issues=errors)
 
+        current_map = self._manager.read_config_map()
         submitted_keys: Set[str] = set()
         updates: List[Tuple[str, str]] = []
         sensitive_keys: Set[str] = set()
@@ -622,9 +657,15 @@ class SystemConfigService:
             field_schema = get_field_definition(key, value)
             normalized_value = self._normalize_value_for_storage(value, field_schema)
             submitted_keys.add(key)
-            updates.append((key, normalized_value))
             if bool(field_schema.get("is_sensitive", False)):
                 sensitive_keys.add(key)
+                if self._is_masked_placeholder_value(
+                    normalized_value,
+                    mask_token,
+                    current_value=current_map.get(key),
+                ) and current_map.get(key):
+                    normalized_value = mask_token
+            updates.append((key, normalized_value))
 
         updated_keys, skipped_masked_keys, new_version = self._manager.apply_updates(
             updates=updates,
@@ -796,7 +837,11 @@ class SystemConfigService:
             field_schema = get_field_definition(key, value)
             is_sensitive = bool(field_schema.get("is_sensitive", False))
 
-            if is_sensitive and value == mask_token and current_map.get(key):
+            if is_sensitive and self._is_masked_placeholder_value(
+                value,
+                mask_token,
+                current_value=current_map.get(key),
+            ) and current_map.get(key):
                 continue
 
             updated_map[key] = value
@@ -907,7 +952,7 @@ class SystemConfigService:
         mask_token: str,
         models: Sequence[str] = (),
     ) -> str:
-        if api_key != mask_token:
+        if not self._is_masked_placeholder_value(api_key, mask_token):
             return api_key
         current_map = self._read_persisted_config_map()
         return (
