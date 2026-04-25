@@ -315,6 +315,14 @@ class LLMChannelConfigTestCase(unittest.TestCase):
         self.assertAlmostEqual(get_fixed_litellm_temperature("moonshot/kimi-k2.6"), 1.0)
         self.assertAlmostEqual(normalize_litellm_temperature("openai/moonshot/kimi-k2.6", 0.2), 1.0)
         self.assertAlmostEqual(normalize_litellm_temperature("openai/kimi-k2.6-preview", 0.2), 1.0)
+        self.assertAlmostEqual(
+            normalize_litellm_temperature(
+                "openai/kimi-k2.6-preview",
+                0.2,
+                request_overrides={"extra_body": {"thinking": {"type": "disabled"}}},
+            ),
+            0.6,
+        )
         self.assertAlmostEqual(normalize_litellm_temperature("openai/gpt-4o-mini", 0.2), 0.2)
 
     def test_kimi_k26_temperature_normalization_resolves_litellm_yaml_alias(self) -> None:
@@ -332,6 +340,27 @@ class LLMChannelConfigTestCase(unittest.TestCase):
         self.assertAlmostEqual(
             normalize_litellm_temperature("kimi_router", 0.2, model_list=model_list),
             1.0,
+        )
+
+    def test_kimi_k26_temperature_normalization_uses_non_thinking_yaml_alias_temperature(self) -> None:
+        model_list = [
+            {
+                "model_name": "kimi_router",
+                "litellm_params": {
+                    "model": "openai/kimi-k2.6",
+                    "api_key": "sk-yaml-value",
+                    "extra_body": {"thinking": {"type": "disabled"}},
+                },
+            }
+        ]
+
+        self.assertAlmostEqual(
+            get_fixed_litellm_temperature("kimi_router", model_list=model_list),
+            0.6,
+        )
+        self.assertAlmostEqual(
+            normalize_litellm_temperature("kimi_router", 0.2, model_list=model_list),
+            0.6,
         )
 
     @patch("src.config.setup_env")

@@ -392,6 +392,7 @@ class LLMToolAdapter:
 
         # Use short model name (without provider prefix) for thinking model lookup
         model_short = model.split("/")[-1] if "/" in model else model
+        extra = get_thinking_extra_body(model_short)
 
         call_kwargs: Dict[str, Any] = {
             "model": model,
@@ -400,6 +401,7 @@ class LLMToolAdapter:
                 model,
                 self._get_temperature() if temperature is None else temperature,
                 model_list=self._config.llm_model_list,
+                request_overrides={"extra_body": extra} if extra else None,
             ),
         }
         if max_tokens is not None:
@@ -407,7 +409,6 @@ class LLMToolAdapter:
         if timeout is not None:
             call_kwargs["timeout"] = timeout
 
-        extra = get_thinking_extra_body(model_short)
         if extra:
             call_kwargs["extra_body"] = extra
 

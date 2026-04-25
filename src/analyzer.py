@@ -1163,6 +1163,7 @@ class GeminiAnalyzer:
         for model in models_to_try:
             try:
                 model_short = model.split("/")[-1] if "/" in model else model
+                extra = get_thinking_extra_body(model_short)
                 call_kwargs: Dict[str, Any] = {
                     "model": model,
                     "messages": [
@@ -1173,10 +1174,10 @@ class GeminiAnalyzer:
                         model,
                         requested_temperature,
                         model_list=config.llm_model_list,
+                        request_overrides={"extra_body": extra} if extra else None,
                     ),
                     "max_tokens": max_tokens,
                 }
-                extra = get_thinking_extra_body(model_short)
                 if extra:
                     call_kwargs["extra_body"] = extra
 

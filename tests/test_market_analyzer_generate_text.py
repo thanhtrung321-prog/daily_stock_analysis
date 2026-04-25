@@ -194,6 +194,38 @@ class TestAnalyzerGenerateText:
         call_kwargs = mock_dispatch.call_args.args[1]
         assert call_kwargs["temperature"] == 1.0
 
+    def test_call_litellm_normalizes_kimi_k26_temperature_for_non_thinking_yaml_alias(self):
+        analyzer = self._make_analyzer()
+        analyzer._config_override = SimpleNamespace(
+            litellm_model="kimi_router",
+            litellm_fallback_models=[],
+            llm_model_list=[
+                {
+                    "model_name": "kimi_router",
+                    "litellm_params": {
+                        "model": "openai/kimi-k2.6",
+                        "extra_body": {"thinking": {"type": "disabled"}},
+                    },
+                }
+            ],
+        )
+        response = SimpleNamespace(
+            choices=[SimpleNamespace(message=SimpleNamespace(content="ok"))],
+            usage=SimpleNamespace(prompt_tokens=1, completion_tokens=1, total_tokens=2),
+        )
+
+        with patch.object(analyzer, "_dispatch_litellm_completion", return_value=response) as mock_dispatch:
+            text, model_used, usage = analyzer._call_litellm(
+                "prompt",
+                {"max_tokens": 128, "temperature": 0.2},
+            )
+
+        assert text == "ok"
+        assert model_used == "kimi_router"
+        assert usage == {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2}
+        call_kwargs = mock_dispatch.call_args.args[1]
+        assert call_kwargs["temperature"] == 0.6
+
     def test_call_litellm_keeps_user_temperature_for_non_kimi_fallback(self):
         analyzer = self._make_analyzer()
         analyzer._config_override = SimpleNamespace(
