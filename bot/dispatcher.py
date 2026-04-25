@@ -711,14 +711,11 @@ User: "analyze TSLA and NVDA using trend strategy"
                 return canonical_stock_code(unique_matches[0])
             return None
 
-        candidates = _iter_candidates(text)
-
-        for candidate in candidates:
+        for candidate in _iter_candidates(text):
             partial = _unique_partial_match(candidate)
             if partial:
                 return partial
 
-        for candidate in candidates:
             resolved = resolve_name_to_code(candidate)
             if resolved:
                 return canonical_stock_code(resolved)

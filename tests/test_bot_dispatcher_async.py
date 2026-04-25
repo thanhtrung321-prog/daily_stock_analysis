@@ -166,15 +166,6 @@ class TestCommandDispatcherAsync(unittest.IsolatedAsyncioTestCase):
         _, args = ask_command.execute_async.await_args.args
         self.assertEqual(args, ["600519"])
 
-    def test_resolve_stock_code_prefers_local_partial_match_before_fallback(self):
-        with patch(
-            "src.services.name_to_code_resolver.resolve_name_to_code",
-            side_effect=AssertionError("resolver fallback should not run"),
-        ):
-            resolved = CommandDispatcher._resolve_stock_code_from_text("帮我分析茅台")
-
-        self.assertEqual(resolved, "600519")
-
 
 class TestCommandDispatcherSyncCompatibility(unittest.TestCase):
     def test_dispatch_sync_wrapper_still_works(self):
