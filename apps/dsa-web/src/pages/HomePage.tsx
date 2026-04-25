@@ -249,11 +249,7 @@ function buildSetupLLMPayload(items: SystemConfigItem[], maskToken: string) {
     };
   }
   if (
-    normalizedPrimaryModel
-    && !normalizedPrimaryModel.startsWith('gemini/')
-    && !normalizedPrimaryModel.startsWith('deepseek/')
-    && !normalizedPrimaryModel.startsWith('anthropic/')
-    && !normalizedPrimaryModel.startsWith('ollama/')
+    normalizedPrimaryModel.startsWith('openai/')
     && (itemMap.get('OPENAI_API_KEYS') || itemMap.get('OPENAI_API_KEY') || itemMap.get('AIHUBMIX_KEY') || '').trim()
   ) {
     return {
