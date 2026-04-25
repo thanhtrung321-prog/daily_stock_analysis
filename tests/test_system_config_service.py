@@ -157,6 +157,28 @@ class SystemConfigServiceTestCase(unittest.TestCase):
         self.assertTrue(result["success"])
         self.assertEqual(mock_completion.call_args.kwargs["api_key"], "persisted-secret")
 
+    @patch("litellm.completion")
+    def test_test_llm_channel_resolves_masked_saved_direct_provider_api_key_from_model(self, mock_completion) -> None:
+        self._rewrite_env(
+            "OPENROUTER_API_KEY=persisted-direct-secret",
+            "LITELLM_MODEL=openrouter/openai/gpt-4o-mini",
+        )
+        mock_completion.return_value = Mock(
+            choices=[Mock(message=Mock(content="OK", content_blocks=None), content_blocks=None)]
+        )
+
+        result = self.service.test_llm_channel(
+            name="openai",
+            protocol="openai",
+            base_url="",
+            api_key="******",
+            models=["openrouter/openai/gpt-4o-mini"],
+            mask_token="******",
+        )
+
+        self.assertTrue(result["success"])
+        self.assertEqual(mock_completion.call_args.kwargs["api_key"], "persisted-direct-secret")
+
     @patch("src.core.pipeline.StockAnalysisPipeline")
     def test_run_setup_smoke_runs_dry_run_without_formal_report(self, mock_pipeline_cls) -> None:
         self._rewrite_env(

@@ -381,6 +381,58 @@ describe('HomePage', () => {
     });
   });
 
+  it('tests direct-provider primary models with the provider-specific masked key', async () => {
+    vi.mocked(historyApi.getList).mockResolvedValue({
+      total: 0,
+      page: 1,
+      limit: 20,
+      items: [],
+    });
+    vi.mocked(systemConfigApi.getConfig).mockResolvedValue({
+      configVersion: 'v1',
+      maskToken: '******',
+      updatedAt: '2026-03-21T00:00:00Z',
+      items: [
+        { key: 'LITELLM_MODEL', value: 'openrouter/openai/gpt-4o-mini', rawValueExists: true, isMasked: false },
+        { key: 'OPENROUTER_API_KEY', value: '******', rawValueExists: true, isMasked: true },
+      ],
+      setupStatus: {
+        isComplete: false,
+        readyForSmoke: false,
+        requiredMissingKeys: ['stock_list'],
+        nextStepKey: 'stock_list',
+        checks: [
+          {
+            key: 'stock_list',
+            title: '自选股',
+            category: 'base',
+            required: true,
+            status: 'needs_action',
+            message: '当前自选股列表为空',
+            nextAction: '请先添加股票',
+          },
+        ],
+      },
+    });
+
+    render(
+      <MemoryRouter>
+        <HomePage />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(await screen.findByRole('button', { name: '测试 LLM' }));
+
+    await waitFor(() => {
+      expect(systemConfigApi.testLLMChannel).toHaveBeenCalledWith(expect.objectContaining({
+        name: 'openrouter',
+        protocol: 'openai',
+        apiKey: '******',
+        models: ['openrouter/openai/gpt-4o-mini'],
+      }));
+    });
+  });
+
   it('surfaces duplicate task warnings from dashboard submission', async () => {
     vi.mocked(historyApi.getList).mockResolvedValue({
       total: 0,

@@ -17,6 +17,7 @@ import requests
 
 from data_provider.base import canonical_stock_code
 from src.config import (
+    _MANAGED_LITELLM_KEY_PROVIDERS,
     SUPPORTED_LLM_CHANNEL_PROTOCOLS,
     Config,
     _get_litellm_provider,
@@ -367,6 +368,7 @@ class SystemConfigService:
             protocol=protocol,
             api_key=api_key,
             mask_token=mask_token,
+            models=existing_models,
         )
         validation_issues, resolved_protocol = self._validate_llm_channel_connection(
             channel_name=channel_name,
@@ -508,6 +510,7 @@ class SystemConfigService:
             protocol=protocol,
             api_key=api_key,
             mask_token=mask_token,
+            models=raw_models,
         )
         stages = [
             self._stage("validation", "配置校验", "running", "正在检查渠道定义"),
@@ -850,11 +853,31 @@ class SystemConfigService:
         channel_name: str,
         protocol: str,
         current_map: Dict[str, str],
+        models: Sequence[str] = (),
     ) -> str:
         prefix = f"LLM_{channel_name.upper()}"
         channel_api_key = (current_map.get(f"{prefix}_API_KEYS") or "").strip() or (current_map.get(f"{prefix}_API_KEY") or "").strip()
         if channel_api_key:
             return channel_api_key
+
+        provider_candidates: List[str] = []
+        seen_candidates: Set[str] = set()
+
+        def _add_candidates(candidate_keys: Sequence[str]) -> None:
+            for env_key in candidate_keys:
+                normalized_key = (env_key or "").strip().upper()
+                if normalized_key and normalized_key not in seen_candidates:
+                    seen_candidates.add(normalized_key)
+                    provider_candidates.append(normalized_key)
+
+        for model in models:
+            raw_model = str(model).strip()
+            if "/" not in raw_model:
+                continue
+            provider_name = raw_model.split("/", 1)[0]
+            _add_candidates(self._api_key_candidates_for_provider(provider_name))
+
+        _add_candidates(self._api_key_candidates_for_provider(channel_name))
 
         resolved_protocol = resolve_llm_channel_protocol(
             current_map.get(f"{prefix}_PROTOCOL") or protocol,
@@ -866,7 +889,9 @@ class SystemConfigService:
             ],
             channel_name=channel_name,
         )
-        for env_key in self._legacy_provider_api_key_candidates(resolved_protocol):
+        _add_candidates(self._legacy_provider_api_key_candidates(resolved_protocol))
+
+        for env_key in provider_candidates:
             resolved_api_key = (current_map.get(env_key) or "").strip()
             if resolved_api_key:
                 return resolved_api_key
@@ -880,6 +905,7 @@ class SystemConfigService:
         protocol: str,
         api_key: str,
         mask_token: str,
+        models: Sequence[str] = (),
     ) -> str:
         if api_key != mask_token:
             return api_key
@@ -889,9 +915,24 @@ class SystemConfigService:
                 channel_name=channel_name,
                 protocol=protocol,
                 current_map=current_map,
+                models=models,
             )
             or api_key
         )
+
+    @classmethod
+    def _api_key_candidates_for_provider(cls, provider_name: str) -> List[str]:
+        normalized_provider = canonicalize_llm_channel_protocol(provider_name or "")
+        if normalized_provider in _MANAGED_LITELLM_KEY_PROVIDERS:
+            return cls._legacy_provider_api_key_candidates(normalized_provider)
+        if normalized_provider == "ollama":
+            return []
+
+        raw_provider = str(provider_name or "").strip().lower().replace("-", "_")
+        if not raw_provider:
+            return []
+        env_prefix = raw_provider.upper().replace("-", "_")
+        return [f"{env_prefix}_API_KEYS", f"{env_prefix}_API_KEY"]
 
     @staticmethod
     def _sanitize_error_text(text: str, secrets: Sequence[str]) -> str:

@@ -20,6 +20,7 @@ import { getReportText, normalizeReportLanguage } from '../utils/reportLanguage'
 
 const SETUP_PROMPT_STORAGE_KEY = 'dsa-first-run-setup-dismissed';
 const MAX_SETUP_STOCKS = 3;
+const MANAGED_SETUP_PROVIDERS = new Set(['openai', 'deepseek', 'gemini', 'anthropic', 'vertex_ai', 'ollama']);
 
 function splitCsv(value: string) {
   return value.split(',').map((item) => item.trim()).filter(Boolean);
@@ -38,6 +39,18 @@ function normalizeModelForRuntime(model: string, protocol: string) {
   if (!trimmed) return '';
   if (trimmed.includes('/')) return trimmed;
   return `${normalizeProtocol(protocol)}/${trimmed}`;
+}
+
+function getModelProvider(model: string) {
+  const trimmed = model.trim();
+  if (!trimmed.includes('/')) return '';
+  return normalizeProtocol(trimmed.split('/', 1)[0] || '');
+}
+
+function getProviderApiKey(itemMap: Map<string, string>, provider: string) {
+  const envPrefix = provider.trim().toUpperCase().replace(/-/g, '_');
+  if (!envPrefix) return '';
+  return itemMap.get(`${envPrefix}_API_KEYS`) || itemMap.get(`${envPrefix}_API_KEY`) || '';
 }
 
 function resolvePrimaryModel(items: Map<string, string>) {
@@ -113,6 +126,22 @@ function buildSetupLLMPayload(items: SystemConfigItem[], maskToken: string) {
       enabled: true,
       maskToken,
     };
+  }
+
+  const directProvider = getModelProvider(primaryModel);
+  if (directProvider && !MANAGED_SETUP_PROVIDERS.has(directProvider)) {
+    const apiKey = getProviderApiKey(itemMap, directProvider);
+    if (apiKey.trim()) {
+      return {
+        name: directProvider,
+        protocol: 'openai',
+        baseUrl: '',
+        apiKey,
+        models: [primaryModel],
+        enabled: true,
+        maskToken,
+      };
+    }
   }
 
   if (normalizedPrimaryModel.startsWith('gemini/') && (itemMap.get('GEMINI_API_KEYS') || itemMap.get('GEMINI_API_KEY') || '').trim()) {
