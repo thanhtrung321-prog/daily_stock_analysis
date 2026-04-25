@@ -15,6 +15,7 @@ ensure_litellm_stub()
 
 from api.v1.endpoints import system_config
 from api.v1.schemas.system_config import (
+    DiscoverLLMChannelModelsRequest,
     ImportSystemConfigRequest,
     SetupSmokeRunRequest,
     TestLLMChannelRequest,
@@ -294,6 +295,35 @@ class SystemConfigApiTestCase(unittest.TestCase):
         self.assertEqual(payload["resolved_model"], "openai/gpt-4o-mini")
         mock_test.assert_called_once()
         self.assertEqual(mock_test.call_args.kwargs["mask_token"], "******")
+
+    def test_discover_llm_channel_models_endpoint_passes_mask_token(self) -> None:
+        with patch.object(
+            self.service,
+            "discover_llm_channel_models",
+            return_value={
+                "success": True,
+                "message": "LLM channel model discovery succeeded",
+                "error": None,
+                "resolved_protocol": "openai",
+                "models": ["gpt-4o-mini"],
+                "latency_ms": 88,
+            },
+        ) as mock_discover:
+            payload = system_config.discover_llm_channel_models(
+                request=DiscoverLLMChannelModelsRequest(
+                    name="primary",
+                    protocol="openai",
+                    base_url="https://api.example.com/v1",
+                    api_key="******",
+                    models=["gpt-4o-mini"],
+                    mask_token="******",
+                ),
+                service=self.service,
+            ).model_dump()
+
+        self.assertTrue(payload["success"])
+        mock_discover.assert_called_once()
+        self.assertEqual(mock_discover.call_args.kwargs["mask_token"], "******")
 
     def test_validate_returns_user_facing_model_message_without_internal_env_key_name(self) -> None:
         validation = self.service.validate(

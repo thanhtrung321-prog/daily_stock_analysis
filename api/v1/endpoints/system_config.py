@@ -341,6 +341,7 @@ def discover_llm_channel_models(
             api_key=request.api_key,
             models=request.models,
             timeout_seconds=request.timeout_seconds,
+            mask_token=request.mask_token,
         )
         return DiscoverLLMChannelModelsResponse.model_validate(payload)
     except (ValueError, TypeError) as exc:

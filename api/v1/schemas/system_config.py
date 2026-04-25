@@ -206,6 +206,7 @@ class DiscoverLLMChannelModelsRequest(BaseModel):
     api_key: str = ""
     models: List[str] = Field(default_factory=list)
     timeout_seconds: float = 20.0
+    mask_token: str = "******"
 
 
 class DiscoverLLMChannelModelsResponse(BaseModel):

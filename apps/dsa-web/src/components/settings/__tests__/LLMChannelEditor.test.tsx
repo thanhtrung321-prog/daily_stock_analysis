@@ -318,7 +318,7 @@ describe('LLMChannelEditor', () => {
           { key: 'LLM_DASHSCOPE_PROTOCOL', value: 'openai' },
           { key: 'LLM_DASHSCOPE_BASE_URL', value: 'https://dashscope.aliyuncs.com/compatible-mode/v1' },
           { key: 'LLM_DASHSCOPE_ENABLED', value: 'true' },
-          { key: 'LLM_DASHSCOPE_API_KEY', value: 'sk-test' },
+          { key: 'LLM_DASHSCOPE_API_KEY', value: '******' },
           { key: 'LLM_DASHSCOPE_MODELS', value: 'qwen-old' },
         ]}
         configVersion="v1"
@@ -342,8 +342,9 @@ describe('LLMChannelEditor', () => {
         name: 'dashscope',
         protocol: 'openai',
         baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
-        apiKey: 'sk-test',
+        apiKey: '******',
         models: ['qwen-old'],
+        maskToken: '******',
       }),
     );
 

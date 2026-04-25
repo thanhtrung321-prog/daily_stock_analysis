@@ -73,6 +73,15 @@ LITELLM_MODEL=ollama/qwen3:8b
 
 > **首次启动 MVP 补充**：当首页或设置页提示“基础配置尚未完成”时，可以直接进入设置页顶部的“首次启动最小配置”卡片：先测试当前主模型，再保存 1-3 只试跑股票，最后执行一次不会生成正式报告的 dry-run。LLM 测试会优先复用当前 `LITELLM_MODEL`；若尚未显式填写，则按与后端运行时一致的推导顺序回退到 **已启用渠道的首个模型** 或 **legacy API Key 对应的默认主模型**。测试结果会分阶段展示 **配置校验 / 模型发现 / 聊天接口 / 响应解析**，并自动对已保存的 API Key 做掩码处理，不会把密钥明文返回前端。
 
+### 首次启动 / 渠道预设的来源、兼容与回退说明
+
+- **DeepSeek 官方来源**：DeepSeek 官方文档当前给出的 OpenAI 兼容 `base_url` 为 `https://api.deepseek.com`，推荐模型为 `deepseek-v4-flash` / `deepseek-v4-pro`；`deepseek-chat` / `deepseek-reasoner` 仅作为兼容别名保留，并标记为 `2026-07-24` 后废弃。来源：<https://api-docs.deepseek.com/>
+- **OpenAI Compatible Base URL 约束**：LiteLLM 的 OpenAI Compatible 文档要求运行时模型使用 `openai/` 前缀，并提醒很多代理/兼容服务的 `api_base` 需要显式带上 `/v1`，否则测试或模型发现容易出现 `Not Found`。来源：<https://docs.litellm.ai/docs/providers/openai_compatible>
+- **Gemini API Key 模式约束**：LiteLLM Gemini 文档说明，使用简单 API Key 时应显式写 `gemini/<model>`；裸模型名会默认走 Vertex AI，需要额外的 GCP 凭证与项目配置。因此首次启动向导在 Gemini API Key 场景下会保持 `gemini/` 前缀，不会偷偷切到 Vertex AI 语义。来源：<https://docs.litellm.ai/docs/providers/gemini>、<https://ai.google.dev/gemini-api/docs/models>
+- **当前仓库依赖/运行时范围**：本仓库当前将 LiteLLM 锁定在 `litellm>=1.80.10,<1.82.7`，并显式保留 `openai>=1.0.0` 依赖；首次启动的 LLM 测试、`/models` 发现与渠道保存逻辑均按这一依赖范围实现。若你本地强行升级到超出该范围的新版本，建议先重新执行 `python test_env.py --llm` 与 Web 设置页“测试当前 LLM / 获取模型”再决定是否保留升级。
+- **旧配置迁移路径**：已有 `DEEPSEEK_API_KEY` / `OPENAI_API_KEY` / `GEMINI_API_KEY` 等 legacy 配置仍可继续跑通首次启动；若你切换到 `LLM_CHANNELS` 渠道模式，建议同时把 `LITELLM_MODEL`、`AGENT_LITELLM_MODEL`、`LITELLM_FALLBACK_MODELS` 调整到当前已启用渠道的模型集合，避免保留指向旧模型名的运行时选择。
+- **回退路径**：如果新渠道预设或首次启动测试不符合你的环境，最安全的回退方式是恢复到原来的 `.env`：保留 legacy `*_API_KEY` + 原主模型配置，或把 `LITELLM_MODEL` 手动改回旧值。首次启动的 dry-run 只做轻量数据抓取校验，不会生成正式报告，也不会替你删除已有配置。
+
 如果不方便用网页版，在 `.env` 文件中配置也非常丝滑，它能让你同时管理多个第三方平台。规则如下：
 
 1. **先声明你有几个渠道**：`LLM_CHANNELS=渠道名称1,渠道名称2`

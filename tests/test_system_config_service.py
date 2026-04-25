@@ -180,6 +180,43 @@ class SystemConfigServiceTestCase(unittest.TestCase):
         )
         mock_pipeline.db.has_today_data.assert_called_once_with("600519", "2026-04-25")
 
+    @patch("src.core.pipeline.StockAnalysisPipeline")
+    def test_run_setup_smoke_uses_pipeline_dry_run_success_semantics(self, mock_pipeline_cls) -> None:
+        self._rewrite_env(
+            "STOCK_LIST=600519",
+            "GEMINI_API_KEY=secret-key-value",
+            "LITELLM_MODEL=gemini/gemini-2.5-flash",
+            f"DATABASE_PATH={self.temp_dir.name}/setup-smoke.db",
+        )
+        mock_pipeline = mock_pipeline_cls.return_value
+        mock_pipeline.run.return_value = [Mock(success=False, error_message="should be ignored")]
+        mock_pipeline._resolve_resume_target_date.return_value = "2026-04-25"
+        mock_pipeline.db.has_today_data.return_value = True
+
+        result = self.service.run_setup_smoke()
+
+        self.assertTrue(result["success"])
+        self.assertIn("轻量数据抓取校验", result["summary"])
+
+    @patch("src.core.pipeline.StockAnalysisPipeline")
+    def test_run_setup_smoke_reports_failure_when_dry_run_data_is_missing(self, mock_pipeline_cls) -> None:
+        self._rewrite_env(
+            "STOCK_LIST=600519",
+            "GEMINI_API_KEY=secret-key-value",
+            "LITELLM_MODEL=gemini/gemini-2.5-flash",
+            f"DATABASE_PATH={self.temp_dir.name}/setup-smoke.db",
+        )
+        mock_pipeline = mock_pipeline_cls.return_value
+        mock_pipeline.run.return_value = [Mock(success=False, error_message="data fetch failed")]
+        mock_pipeline._resolve_resume_target_date.return_value = "2026-04-25"
+        mock_pipeline.db.has_today_data.return_value = False
+
+        result = self.service.run_setup_smoke()
+
+        self.assertFalse(result["success"])
+        self.assertEqual(result["error_code"], "dry_run_failed")
+        self.assertEqual(result["summary"], "data fetch failed")
+
     def test_export_desktop_env_returns_raw_text(self) -> None:
         self.env_path.write_text(
             "# Desktop config\nSTOCK_LIST=600519,000001\n\nGEMINI_API_KEY=secret-key-value\n",

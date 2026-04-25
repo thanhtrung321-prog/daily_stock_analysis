@@ -1061,6 +1061,7 @@ export const LLMChannelEditor: React.FC<LLMChannelEditorProps> = ({
         apiKey: channel.apiKey,
         models: splitModels(channel.models),
         enabled: channel.enabled,
+        maskToken,
       });
 
       const text = result.success
@@ -1105,6 +1106,7 @@ export const LLMChannelEditor: React.FC<LLMChannelEditorProps> = ({
         baseUrl: channel.baseUrl,
         apiKey: channel.apiKey,
         models: splitModels(channel.models),
+        maskToken,
       });
 
       if (discoveryNonceRef.current[channel.id] !== nonce) return;

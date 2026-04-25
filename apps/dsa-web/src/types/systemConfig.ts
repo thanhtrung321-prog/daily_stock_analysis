@@ -182,6 +182,7 @@ export interface DiscoverLLMChannelModelsRequest {
   apiKey?: string;
   models?: string[];
   timeoutSeconds?: number;
+  maskToken?: string;
 }
 
 export interface DiscoverLLMChannelModelsResponse {
