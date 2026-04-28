@@ -157,6 +157,116 @@ def _safe_float(v: Any, default: float = 0.0) -> float:
         return default
 
 
+_BULLISH_TREND_HINTS: Tuple[str, ...] = (
+    "多头排列",
+    "持续上涨",
+    "趋势向上",
+    "上升趋势",
+    "向上发散",
+    "bullish",
+    "uptrend",
+)
+_BEARISH_TREND_HINTS: Tuple[str, ...] = (
+    "空头排列",
+    "持续下跌",
+    "趋势向下",
+    "下降趋势",
+    "向下发散",
+    "bearish",
+    "downtrend",
+)
+_NEGATION_TOKENS: Tuple[str, ...] = ("未", "非", "不是", "并非", "尚未", "不属", "not ", "no ")
+
+
+def _normalize_prompt_reason_items(items: Any) -> List[str]:
+    """Normalize prompt reason/risk items into a clean string list."""
+    if not isinstance(items, list):
+        return []
+    normalized: List[str] = []
+    for item in items:
+        text = str(item).strip()
+        if text:
+            normalized.append(text)
+    return normalized
+
+
+def _contains_trend_hint(text: str, hints: Tuple[str, ...]) -> bool:
+    """Return True when text contains a non-negated strong trend hint."""
+    lowered = text.strip().lower()
+    for hint in hints:
+        keyword = hint.lower()
+        index = lowered.find(keyword)
+        if index < 0:
+            continue
+        prefix = lowered[max(0, index - 4):index]
+        if any(prefix.endswith(token) for token in _NEGATION_TOKENS):
+            continue
+        return True
+    return False
+
+
+def _infer_trend_direction(trend: Dict[str, Any]) -> str:
+    """Infer the final trend direction from trend_status and ma_alignment."""
+    combined = " ".join(
+        str(trend.get(key, "")).strip()
+        for key in ("trend_status", "ma_alignment")
+        if str(trend.get(key, "")).strip()
+    )
+    if not combined:
+        return "neutral"
+    has_bullish = _contains_trend_hint(combined, _BULLISH_TREND_HINTS) or "ma5>ma10>ma20" in combined.lower()
+    has_bearish = _contains_trend_hint(combined, _BEARISH_TREND_HINTS) or "ma5<ma10<ma20" in combined.lower()
+    if has_bullish and not has_bearish:
+        return "bullish"
+    if has_bearish and not has_bullish:
+        return "bearish"
+    return "neutral"
+
+
+def _filter_conflicting_trend_items(items: List[str], conflict_hints: Tuple[str, ...]) -> List[str]:
+    """Drop reasons that directly conflict with the final trend direction."""
+    return [item for item in items if not _contains_trend_hint(item, conflict_hints)]
+
+
+def _sanitize_trend_analysis_for_prompt(
+    trend: Any,
+    *,
+    volume_change_ratio: Any = None,
+) -> Dict[str, Any]:
+    """Clean contradictory trend hints before they are injected into the LLM prompt."""
+    trend_dict = dict(trend) if isinstance(trend, dict) else {}
+    signal_reasons = _normalize_prompt_reason_items(trend_dict.get("signal_reasons"))
+    risk_factors = _normalize_prompt_reason_items(trend_dict.get("risk_factors"))
+    prompt_notes: List[str] = []
+    trend_direction = _infer_trend_direction(trend_dict)
+
+    if trend_direction == "bearish":
+        filtered_signal_reasons = _filter_conflicting_trend_items(signal_reasons, _BULLISH_TREND_HINTS)
+        if len(filtered_signal_reasons) != len(signal_reasons):
+            prompt_notes.append("当前技术结构偏空，已剔除与空头主判断直接冲突的看多结构理由。")
+        signal_reasons = filtered_signal_reasons
+        prompt_notes.append(
+            "若新闻、业绩或政策催化偏多，只能表述为“事件先行、技术待确认”或“基本面偏多，但技术面尚未确认”，严禁写成确定性买点。"
+        )
+    elif trend_direction == "bullish":
+        filtered_risk_factors = _filter_conflicting_trend_items(risk_factors, _BEARISH_TREND_HINTS)
+        if len(filtered_risk_factors) != len(risk_factors):
+            prompt_notes.append("当前技术结构偏多，已剔除与多头主判断直接冲突的空头结构风险表述。")
+        risk_factors = filtered_risk_factors
+
+    parsed_volume_change = _safe_float(volume_change_ratio, default=math.nan)
+    if math.isfinite(parsed_volume_change) and parsed_volume_change > 10:
+        prompt_notes.append(
+            f"成交量较昨日变化约 {parsed_volume_change:.2f} 倍，可能存在异常数据或一次性冲量；量能信号必须降权解读，不能机械视为强确认。"
+        )
+
+    trend_dict["signal_reasons"] = signal_reasons
+    trend_dict["risk_factors"] = risk_factors
+    trend_dict["prompt_consistency_notes"] = prompt_notes
+    trend_dict["prompt_trend_direction"] = trend_direction
+    return trend_dict
+
+
 def _derive_chip_health(profit_ratio: float, concentration_90: float, language: str = "zh") -> str:
     """Derive chip_health from profit_ratio and concentration_90."""
     if profit_ratio >= 0.9:
@@ -1601,7 +1711,11 @@ class GeminiAnalyzer:
         
         # 添加趋势分析结果（仅隐式内建 bull_trend 默认回退保留旧口径）
         if 'trend_analysis' in context:
-            trend = context['trend_analysis']
+            trend = _sanitize_trend_analysis_for_prompt(
+                context['trend_analysis'],
+                volume_change_ratio=context.get('volume_change_ratio'),
+            )
+            consistency_notes = trend.get('prompt_consistency_notes', [])
             if use_legacy_default_prompt:
                 bias_warning = "🚨 超过5%，严禁追高！" if trend.get('bias_ma5', 0) > 5 else "✅ 安全范围"
                 prompt += f"""
@@ -1623,6 +1737,12 @@ class GeminiAnalyzer:
 
 **风险因素**：
 {chr(10).join('- ' + r for r in trend.get('risk_factors', ['无'])) if trend.get('risk_factors') else '- 无'}
+"""
+                if consistency_notes:
+                    prompt += f"""
+
+**一致性约束**：
+{chr(10).join('- ' + note for note in consistency_notes)}
 """
             else:
                 bias_warning = (
@@ -1650,6 +1770,12 @@ class GeminiAnalyzer:
 **风险因素**：
 {chr(10).join('- ' + r for r in trend.get('risk_factors', ['无'])) if trend.get('risk_factors') else '- 无'}
 """
+                if consistency_notes:
+                    prompt += f"""
+
+**一致性约束**：
+{chr(10).join('- ' + note for note in consistency_notes)}
+"""
         
         # 添加昨日对比数据
         if 'yesterday' in context:
@@ -1658,6 +1784,11 @@ class GeminiAnalyzer:
 ### 量价变化
 - 成交量较昨日变化：{volume_change}倍
 - 价格较昨日变化：{context.get('price_change_ratio', 'N/A')}%
+"""
+            parsed_volume_change = _safe_float(volume_change, default=math.nan)
+            if math.isfinite(parsed_volume_change) and parsed_volume_change > 10:
+                prompt += """
+- ⚠️ 量能异常提示：成交量较昨日放大超过10倍，可能受异常数据或一次性冲量影响，必须降权解读，不能机械视为强确认信号
 """
         
         # 添加新闻搜索结果（重点区域）
@@ -1762,7 +1893,8 @@ class GeminiAnalyzer:
 - **具体狙击点位**：买入价、止损价、目标价（精确到分）
 - **检查清单**：每项用 ✅/⚠️/❌ 标记
 - **消息面时间合规**：`latest_news`、`risk_alerts`、`positive_catalysts` 不得包含超出近{news_window_days}日或时间未知的信息
-
+- **技术面一致性**：严禁把“空头排列”和“多头排列”等互斥结论同时当作有效依据；若基本面/事件面与技术面冲突，必须明确写“事件先行、技术待确认”或“基本面偏多，但技术面尚未确认”
+ 
 请输出完整的 JSON 格式决策仪表盘。"""
 
         if report_language == "en":

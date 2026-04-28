@@ -1,15 +1,16 @@
 # -*- coding: utf-8 -*-
 """Tests for analyzer news prompt hard constraints (Issue #697)."""
 
-import sys
 import unittest
 from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 try:
     import litellm  # noqa: F401
 except ModuleNotFoundError:
-    sys.modules["litellm"] = MagicMock()
+    from tests.litellm_stub import ensure_litellm_stub
+
+    ensure_litellm_stub()
 
 from src.analyzer import GeminiAnalyzer
 
@@ -142,6 +143,84 @@ class AnalyzerNewsPromptTestCase(unittest.TestCase):
         self.assertNotIn("是否满足 MA5>MA10>MA20 多头排列", prompt)
         self.assertNotIn("超过5%必须标注\"严禁追高\"", prompt)
         self.assertNotIn("MA5>MA10>MA20为多头", prompt)
+
+    def test_format_prompt_removes_bullish_reasons_when_final_trend_is_bearish(self) -> None:
+        with patch.object(GeminiAnalyzer, "_init_litellm", return_value=None):
+            analyzer = GeminiAnalyzer(
+                skill_instructions="### 技能 1: 缠论\n- 关注中枢与背驰",
+                default_skill_policy="",
+                use_legacy_default_prompt=False,
+            )
+
+        context = {
+            "code": "603259",
+            "stock_name": "药明康德",
+            "date": "2026-04-28",
+            "today": {"close": 58.6, "ma5": 57.2, "ma10": 58.8, "ma20": 60.4},
+            "yesterday": {"close": 57.8},
+            "volume_change_ratio": 12.4,
+            "trend_analysis": {
+                "trend_status": "空头排列",
+                "ma_alignment": "空头排列 MA5<MA10<MA20",
+                "trend_strength": 34,
+                "bias_ma5": 2.1,
+                "bias_ma10": -0.8,
+                "volume_status": "放量",
+                "volume_trend": "放量震荡",
+                "buy_signal": "观察",
+                "signal_score": 41,
+                "signal_reasons": ["多头排列，持续上涨", "事件催化存在但技术待确认"],
+                "risk_factors": ["跌破MA20，趋势承压"],
+            },
+        }
+
+        prompt = analyzer._format_prompt(
+            context,
+            "药明康德",
+            news_context="2026-04-27 一季报超预期，订单增长。",
+        )
+
+        self.assertIn("空头排列 MA5<MA10<MA20", prompt)
+        self.assertNotIn("多头排列，持续上涨", prompt)
+        self.assertIn("事件催化存在但技术待确认", prompt)
+        self.assertIn("事件先行、技术待确认", prompt)
+        self.assertIn("量能异常提示", prompt)
+        self.assertIn("技术面一致性", prompt)
+
+    def test_format_prompt_removes_bearish_risks_when_final_trend_is_bullish(self) -> None:
+        with patch.object(GeminiAnalyzer, "_init_litellm", return_value=None):
+            analyzer = GeminiAnalyzer(
+                skill_instructions="### 技能 1: 缠论\n- 关注中枢与背驰",
+                default_skill_policy="",
+                use_legacy_default_prompt=False,
+            )
+
+        context = {
+            "code": "600519",
+            "stock_name": "贵州茅台",
+            "date": "2026-04-28",
+            "today": {"close": 1688.0, "ma5": 1675.0, "ma10": 1660.0, "ma20": 1640.0},
+            "trend_analysis": {
+                "trend_status": "多头排列",
+                "ma_alignment": "多头排列 MA5>MA10>MA20",
+                "trend_strength": 78,
+                "bias_ma5": 1.8,
+                "bias_ma10": 3.2,
+                "volume_status": "平量",
+                "volume_trend": "量价配合",
+                "buy_signal": "偏强",
+                "signal_score": 73,
+                "signal_reasons": ["多头排列，持续上涨"],
+                "risk_factors": ["空头排列，持续下跌", "财报披露前波动可能放大"],
+            },
+        }
+
+        prompt = analyzer._format_prompt(context, "贵州茅台", news_context=None)
+
+        self.assertIn("多头排列 MA5>MA10>MA20", prompt)
+        self.assertIn("财报披露前波动可能放大", prompt)
+        self.assertNotIn("空头排列，持续下跌", prompt)
+        self.assertIn("已剔除与多头主判断直接冲突的空头结构风险表述", prompt)
 
 
 if __name__ == "__main__":
