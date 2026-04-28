@@ -36,6 +36,16 @@ class AnalyzerNewsPromptTestCase(unittest.TestCase):
             "bullish",
         )
 
+    def test_infer_trend_direction_recognizes_weak_bullish_and_bearish_states(self) -> None:
+        self.assertEqual(
+            _infer_trend_direction({"trend_status": "弱势多头", "ma_alignment": "弱势多头，MA5>MA10 但 MA10≤MA20"}),
+            "bullish",
+        )
+        self.assertEqual(
+            _infer_trend_direction({"trend_status": "弱势空头", "ma_alignment": "弱势空头，MA5<MA10 但 MA10≥MA20"}),
+            "bearish",
+        )
+
     def test_analysis_prompt_resolves_shared_skill_prompt_state_by_default(self) -> None:
         with patch.object(GeminiAnalyzer, "_init_litellm", return_value=None):
             analyzer = GeminiAnalyzer()
@@ -241,6 +251,46 @@ class AnalyzerNewsPromptTestCase(unittest.TestCase):
         self.assertIn("财报披露前波动可能放大", prompt)
         self.assertNotIn("空头排列，持续下跌", prompt)
         self.assertIn("已剔除与多头主判断直接冲突的空头结构风险表述", prompt)
+
+    def test_format_prompt_removes_bullish_reasons_when_final_trend_is_weak_bearish(self) -> None:
+        with patch.object(GeminiAnalyzer, "_init_litellm", return_value=None):
+            analyzer = GeminiAnalyzer(
+                skill_instructions="### 技能 1: 缠论\n- 关注中枢与背驰",
+                default_skill_policy="",
+                use_legacy_default_prompt=False,
+            )
+
+        context = {
+            "code": "300750",
+            "stock_name": "宁德时代",
+            "date": "2026-04-28",
+            "today": {"close": 178.5, "ma5": 176.0, "ma10": 180.2, "ma20": 179.9},
+            "trend_analysis": {
+                "trend_status": "弱势空头",
+                "ma_alignment": "弱势空头，MA5<MA10 但 MA10≥MA20",
+                "trend_strength": 43,
+                "bias_ma5": 1.4,
+                "bias_ma10": -0.9,
+                "volume_status": "平量",
+                "volume_trend": "量能一般",
+                "buy_signal": "观察",
+                "signal_score": 45,
+                "signal_reasons": ["弱势多头修复", "多头排列，持续上涨", "事件催化存在但技术待确认"],
+                "risk_factors": ["MA10 压制仍在"],
+            },
+        }
+
+        prompt = analyzer._format_prompt(
+            context,
+            "宁德时代",
+            news_context="2026-04-27 新产品发布，市场情绪回暖。",
+        )
+
+        self.assertIn("弱势空头，MA5<MA10 但 MA10≥MA20", prompt)
+        self.assertNotIn("弱势多头修复", prompt)
+        self.assertNotIn("多头排列，持续上涨", prompt)
+        self.assertIn("事件催化存在但技术待确认", prompt)
+        self.assertIn("已剔除与空头主判断直接冲突的看多结构理由", prompt)
 
 
 if __name__ == "__main__":

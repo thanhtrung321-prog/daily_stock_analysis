@@ -166,6 +166,7 @@ _BULLISH_TREND_HINTS: Tuple[str, ...] = (
     "bullish",
     "uptrend",
 )
+_WEAK_BULLISH_TREND_HINTS: Tuple[str, ...] = ("弱势多头",)
 _BEARISH_TREND_HINTS: Tuple[str, ...] = (
     "空头排列",
     "持续下跌",
@@ -175,6 +176,7 @@ _BEARISH_TREND_HINTS: Tuple[str, ...] = (
     "bearish",
     "downtrend",
 )
+_WEAK_BEARISH_TREND_HINTS: Tuple[str, ...] = ("弱势空头",)
 _NEGATION_TOKENS: Tuple[str, ...] = ("不是", "并非", "尚未", "不属", "not ", "no ")
 _NEGATION_BREAK_CHARS: Tuple[str, ...] = (",", ".", ";", ":", "!", "?", "，", "。", "；", "：", "！", "？", "\n")
 _NEGATION_LOOKBACK_CHARS = 16
@@ -233,8 +235,24 @@ def _infer_trend_direction(trend: Dict[str, Any]) -> str:
     )
     if not combined:
         return "neutral"
-    has_bullish = _contains_trend_hint(combined, _BULLISH_TREND_HINTS) or "ma5>ma10>ma20" in combined.lower()
-    has_bearish = _contains_trend_hint(combined, _BEARISH_TREND_HINTS) or "ma5<ma10<ma20" in combined.lower()
+    lowered = combined.lower()
+    normalized = lowered.replace(" ", "")
+    has_bullish = (
+        _contains_trend_hint(combined, _BULLISH_TREND_HINTS + _WEAK_BULLISH_TREND_HINTS)
+        or "ma5>ma10>ma20" in normalized
+        or (
+            "ma5>ma10" in normalized
+            and any(pattern in normalized for pattern in ("ma10≤ma20", "ma10<=ma20"))
+        )
+    )
+    has_bearish = (
+        _contains_trend_hint(combined, _BEARISH_TREND_HINTS + _WEAK_BEARISH_TREND_HINTS)
+        or "ma5<ma10<ma20" in normalized
+        or (
+            "ma5<ma10" in normalized
+            and any(pattern in normalized for pattern in ("ma10≥ma20", "ma10>=ma20"))
+        )
+    )
     if has_bullish and not has_bearish:
         return "bullish"
     if has_bearish and not has_bullish:
@@ -260,7 +278,10 @@ def _sanitize_trend_analysis_for_prompt(
     trend_direction = _infer_trend_direction(trend_dict)
 
     if trend_direction == "bearish":
-        filtered_signal_reasons = _filter_conflicting_trend_items(signal_reasons, _BULLISH_TREND_HINTS)
+        filtered_signal_reasons = _filter_conflicting_trend_items(
+            signal_reasons,
+            _BULLISH_TREND_HINTS + _WEAK_BULLISH_TREND_HINTS,
+        )
         if len(filtered_signal_reasons) != len(signal_reasons):
             prompt_notes.append("当前技术结构偏空，已剔除与空头主判断直接冲突的看多结构理由。")
         signal_reasons = filtered_signal_reasons
@@ -268,7 +289,10 @@ def _sanitize_trend_analysis_for_prompt(
             "若新闻、业绩或政策催化偏多，只能表述为“事件先行、技术待确认”或“基本面偏多，但技术面尚未确认”，严禁写成确定性买点。"
         )
     elif trend_direction == "bullish":
-        filtered_risk_factors = _filter_conflicting_trend_items(risk_factors, _BEARISH_TREND_HINTS)
+        filtered_risk_factors = _filter_conflicting_trend_items(
+            risk_factors,
+            _BEARISH_TREND_HINTS + _WEAK_BEARISH_TREND_HINTS,
+        )
         if len(filtered_risk_factors) != len(risk_factors):
             prompt_notes.append("当前技术结构偏多，已剔除与多头主判断直接冲突的空头结构风险表述。")
         risk_factors = filtered_risk_factors
