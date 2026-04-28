@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 """
 ===================================
-股票智能分析系统 - 大盘复盘模块（支持 A 股 / 美股）
+股票智能分析系统 - 大盘复盘模块（支持 A 股 / 港股 / 美股）
 ===================================
 
 职责：
-1. 根据 MARKET_REVIEW_REGION 配置选择市场区域（cn / us / both）
+1. 根据 MARKET_REVIEW_REGION 配置选择市场区域（cn / hk / us / both）
 2. 执行大盘复盘分析并生成复盘报告
 3. 保存和发送复盘报告
 """
@@ -34,52 +34,37 @@ def _get_market_review_text(language: str) -> dict[str, str]:
             "push_title": "🎯 Market Review",
             "cn_title": "# A-share Market Recap",
             "us_title": "# US Market Recap",
-            "separator": "> US market recap follows",
+            "hk_title": "# HK Market Recap",
+            "separator": "> Next market recap follows",
         }
     return {
         "root_title": "# 🎯 大盘复盘",
         "push_title": "🎯 大盘复盘",
         "cn_title": "# A股大盘复盘",
         "us_title": "# 美股大盘复盘",
-        "separator": "> 以下为美股大盘复盘",
+        "hk_title": "# 港股大盘复盘",
+        "separator": "> 以下为下一市场大盘复盘",
     }
 
 
-def _append_hotspot_sections(
+def _append_cn_hotspot_sections(
     review_report: Optional[str],
-    region: str,
     language: str,
-    *,
-    has_cn_section: bool = False,
-    separator_text: Optional[str] = None,
 ) -> Optional[str]:
     if not review_report:
         return review_report
 
-    if region == "cn":
-        hotspot_region = "cn"
-    elif region == "both" and has_cn_section:
-        hotspot_region = "cn"
-    else:
-        return review_report
-
     try:
         appendix = MarketReviewHotspotService().build_markdown(
-            region=hotspot_region,
+            region="cn",
             language=language,
         )
         if not appendix:
             return review_report
-        if region == "both" and separator_text:
-            separator_block = f"\n\n---\n\n{separator_text}\n\n"
-            if separator_block in review_report:
-                cn_section, us_section = review_report.split(separator_block, 1)
-                return f"{cn_section}\n\n---\n\n{appendix}{separator_block}{us_section}"
         return f"{review_report}\n\n---\n\n{appendix}"
     except Exception as exc:
         logger.warning(
-            "Failed to append market review hotspot sections for region=%s language=%s: %s",
-            hotspot_region,
+            "Failed to append market review hotspot sections for region=cn language=%s: %s",
             language,
             exc,
         )
@@ -111,53 +96,62 @@ def run_market_review(
     logger.info("开始执行大盘复盘分析...")
     config = get_config()
     review_text = _get_market_review_text(getattr(config, "report_language", "zh"))
+    review_language = getattr(config, "report_language", "zh")
     region = (
         override_region
         if override_region is not None
         else (getattr(config, 'market_review_region', 'cn') or 'cn')
     )
-    if region not in ('cn', 'us', 'both'):
-        region = 'cn'
+    all_markets = [('cn', 'cn_title', 'A 股'), ('hk', 'hk_title', '港股'), ('us', 'us_title', '美股')]
+    valid_singles = {'cn', 'us', 'hk'}
 
-    cn_report: Optional[str] = None
+    if ',' in region:
+        run_markets = [m.strip() for m in region.split(',') if m.strip() in valid_singles]
+    elif region == 'both':
+        run_markets = [market for market, _, _ in all_markets]
+    elif region in valid_singles:
+        run_markets = [region]
+    else:
+        run_markets = ['cn']
 
     try:
-        if region == 'both':
-            # 顺序执行 A 股 + 美股，合并报告
-            cn_analyzer = MarketAnalyzer(
-                search_service=search_service, analyzer=analyzer, region='cn'
+        if len(run_markets) > 1:
+            parts = []
+            for market, title_key, label in all_markets:
+                if market not in run_markets:
+                    continue
+                logger.info("生成 %s 大盘复盘报告...", label)
+                market_analyzer = MarketAnalyzer(
+                    search_service=search_service,
+                    analyzer=analyzer,
+                    region=market,
+                )
+                market_report = market_analyzer.run_daily_review()
+                if not market_report:
+                    continue
+                if market == 'cn':
+                    market_report = _append_cn_hotspot_sections(
+                        market_report,
+                        review_language,
+                    )
+                parts.append(f"{review_text[title_key]}\n\n{market_report}")
+            review_report = (
+                f"\n\n---\n\n{review_text['separator']}\n\n".join(parts)
+                if parts
+                else None
             )
-            us_analyzer = MarketAnalyzer(
-                search_service=search_service, analyzer=analyzer, region='us'
-            )
-            logger.info("生成 A 股大盘复盘报告...")
-            cn_report = cn_analyzer.run_daily_review()
-            logger.info("生成美股大盘复盘报告...")
-            us_report = us_analyzer.run_daily_review()
-            review_report = ''
-            if cn_report:
-                review_report = f"{review_text['cn_title']}\n\n{cn_report}"
-            if us_report:
-                if review_report:
-                    review_report += f"\n\n---\n\n{review_text['separator']}\n\n"
-                review_report += f"{review_text['us_title']}\n\n{us_report}"
-            if not review_report:
-                review_report = None
         else:
             market_analyzer = MarketAnalyzer(
                 search_service=search_service,
                 analyzer=analyzer,
-                region=region,
+                region=run_markets[0],
             )
             review_report = market_analyzer.run_daily_review()
-
-        review_report = _append_hotspot_sections(
-            review_report,
-            region=region,
-            language=getattr(config, "report_language", "zh"),
-            has_cn_section=bool(region == "cn" or (region == "both" and cn_report)),
-            separator_text=review_text["separator"] if region == "both" else None,
-        )
+            if run_markets[0] == 'cn':
+                review_report = _append_cn_hotspot_sections(
+                    review_report,
+                    review_language,
+                )
 
         if review_report:
             # 保存报告到文件
