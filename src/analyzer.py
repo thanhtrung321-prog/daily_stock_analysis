@@ -177,10 +177,28 @@ _BEARISH_TREND_HINTS: Tuple[str, ...] = (
     "downtrend",
 )
 _WEAK_BEARISH_TREND_HINTS: Tuple[str, ...] = ("弱势空头",)
-_NEGATION_TOKENS: Tuple[str, ...] = ("不是", "并非", "尚未", "不属", "not ", "no ")
+_NEGATION_TOKENS: Tuple[str, ...] = ("不是", "并非", "并未", "尚未", "未", "不属", "非", "not ", "no ")
 _NEGATION_BREAK_CHARS: Tuple[str, ...] = (",", ".", ";", ":", "!", "?", "，", "。", "；", "：", "！", "？", "\n")
 _NEGATION_LOOKBACK_CHARS = 16
 _NEGATION_MAX_GAP_CHARS = 8
+_SINGLE_CHAR_NEGATION_GAP_PREFIXES: Tuple[str, ...] = (
+    "形成",
+    "出现",
+    "进入",
+    "转为",
+    "转成",
+    "构成",
+    "呈现",
+    "显示",
+    "属于",
+    "是",
+    "有",
+    "能",
+    "见",
+    "站",
+    "守",
+    "破",
+)
 
 
 def _normalize_prompt_reason_items(items: Any) -> List[str]:
@@ -199,6 +217,13 @@ def _contains_trend_hint(text: str, hints: Tuple[str, ...]) -> bool:
     """Return True when text contains a non-negated strong trend hint."""
     lowered = text.strip().lower()
 
+    def _is_valid_negation_gap(token: str, gap: str) -> bool:
+        if not gap:
+            return True
+        if token not in {"未", "非"}:
+            return True
+        return any(gap.startswith(prefix) for prefix in _SINGLE_CHAR_NEGATION_GAP_PREFIXES)
+
     def _is_negated_match(index: int) -> bool:
         prefix = lowered[max(0, index - _NEGATION_LOOKBACK_CHARS):index]
         for token in _NEGATION_TOKENS:
@@ -208,7 +233,10 @@ def _contains_trend_hint(text: str, hints: Tuple[str, ...]) -> bool:
             gap = prefix[token_index + len(token):]
             if any(char in gap for char in _NEGATION_BREAK_CHARS):
                 continue
-            if len(gap.strip()) > _NEGATION_MAX_GAP_CHARS:
+            stripped_gap = gap.strip()
+            if len(stripped_gap) > _NEGATION_MAX_GAP_CHARS:
+                continue
+            if not _is_valid_negation_gap(token, stripped_gap):
                 continue
             return True
         return False

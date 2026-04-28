@@ -18,6 +18,9 @@ from src.analyzer import GeminiAnalyzer, _BULLISH_TREND_HINTS, _contains_trend_h
 class AnalyzerNewsPromptTestCase(unittest.TestCase):
     def test_contains_trend_hint_treats_non_adjacent_negation_as_negated(self) -> None:
         self.assertFalse(_contains_trend_hint("尚未形成上升趋势，继续观察。", _BULLISH_TREND_HINTS))
+        self.assertFalse(_contains_trend_hint("未形成上升趋势，继续观察。", _BULLISH_TREND_HINTS))
+        self.assertFalse(_contains_trend_hint("并未形成上升趋势，继续观察。", _BULLISH_TREND_HINTS))
+        self.assertFalse(_contains_trend_hint("当前非多头排列，仍需观察。", _BULLISH_TREND_HINTS))
         self.assertFalse(_contains_trend_hint("This is not a bullish trend yet.", _BULLISH_TREND_HINTS))
 
     def test_contains_trend_hint_scans_later_non_negated_occurrences(self) -> None:
@@ -44,6 +47,12 @@ class AnalyzerNewsPromptTestCase(unittest.TestCase):
         self.assertEqual(
             _infer_trend_direction({"trend_status": "弱势空头", "ma_alignment": "弱势空头，MA5<MA10 但 MA10≥MA20"}),
             "bearish",
+        )
+
+    def test_infer_trend_direction_ignores_negated_bullish_hints(self) -> None:
+        self.assertEqual(
+            _infer_trend_direction({"trend_status": "未形成上升趋势", "ma_alignment": "当前非多头排列"}),
+            "neutral",
         )
 
     def test_analysis_prompt_resolves_shared_skill_prompt_state_by_default(self) -> None:
