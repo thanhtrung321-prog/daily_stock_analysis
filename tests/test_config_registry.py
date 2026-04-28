@@ -141,5 +141,13 @@ class TestDiscordInteractionPublicKeyField(unittest.TestCase):
         self.assertIn("DISCORD_INTERACTIONS_PUBLIC_KEY", field_keys)
 
 
+class TestMarketReviewRegionRegistry(unittest.TestCase):
+    def test_market_review_region_supports_hk_and_both(self):
+        field = get_field_definition("MARKET_REVIEW_REGION")
+        self.assertEqual(field["options"], ["cn", "hk", "us", "both"])
+        self.assertEqual(field["validation"]["enum"], ["cn", "hk", "us", "both"])
+        self.assertIn("hk", field["description"].lower())
+
+
 if __name__ == "__main__":
     unittest.main()

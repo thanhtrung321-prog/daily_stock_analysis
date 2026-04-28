@@ -312,6 +312,7 @@ daily_stock_analysis/
 > - 在上述固定结构之后，系统会仅对 A 股复盘追加“热门板块 / 热门股票”摘要：热门板块按当日涨跌幅 Top N 排序，热门股票按当日涨跌幅优先、成交额次排序（剔除 ETF）；若板块或个股任一数据源缺失，则仅跳过对应追加区块，不影响原有复盘正文和其他区块输出。
 > - 该追加能力复用现有 `DataFetcherManager.get_sector_rankings()` / `get_hot_stocks()` 以及 TickFlow、efinance、AkShare 的既有 fallback 顺序；它不会改变个股分析、实时行情、LLM 调用或通知配置的优先级。
 > - 代码落点仅限 `src/core/market_review.py`、`src/services/market_review_hotspot_service.py`、`data_provider/base.py`、`data_provider/akshare_fetcher.py`、`data_provider/efinance_fetcher.py` 这类复盘拼装与 A 股行情读取路径；本次未新增环境变量，仅同步了文档与 `.env.example` 中已有 `MARKET_REVIEW_REGION` 注释，也未调整 Web/Desktop 设置项。
+> - 结构化检测里“外部模型/API 或运行时配置迁移风险”的触发源，仅是同一 PR 同时修改了 `.env.example`、`src/config.py`、`src/core/config_registry.py` 这些配置文件；本次没有改动 LLM provider、Base URL、模型默认值、旧配置加载优先级或迁移/回填逻辑，因此该条可视为配置文件命中带来的误报。
 > - 如需回退，本次仅需关闭 `MARKET_REVIEW_ENABLED` 或回滚上述复盘/行情读取改动；现有 `LITELLM_CONFIG` / `LLM_CHANNELS` / legacy `GEMINI_*` `OPENAI_*` `ANTHROPIC_*` 配置无需迁移、清理或重写。
 > - 字段契约：
 >   - `fundamental_context.belong_boards` = 个股关联板块列表（当前仅 A 股写入；无数据时为 `[]`）；
@@ -337,7 +338,7 @@ daily_stock_analysis/
 | `TRUST_X_FORWARDED_FOR` | 单层可信反向代理部署时设为 `true`，取 `X-Forwarded-For` 最右值作为真实客户端 IP（用于登录限流等）；直连公网时保持 `false` 防伪造。多级代理/CDN 场景下限流 key 可能退化为边缘代理 IP，需额外评估 | `false` |
 | `MAX_WORKERS` | 并发线程数 | `3` |
 | `MARKET_REVIEW_ENABLED` | 启用大盘复盘 | `true` |
-| `MARKET_REVIEW_REGION` | 大盘复盘市场区域：cn(A股)、us(美股)、both(多市场全集)；常规定时/手动运行会先按当日开市子集收敛，可能得到 `cn` / `hk` / `us` / `cn,hk` / `cn,us` / `hk,us` / `both`，`--force-run` 或 `TRADING_DAY_CHECK_ENABLED=false` 才保留配置原值 | `cn` |
+| `MARKET_REVIEW_REGION` | 大盘复盘市场区域：cn(A股)、hk(港股)、us(美股)、both(三市场)，us 适合仅关注美股的用户 | `cn` |
 | `TRADING_DAY_CHECK_ENABLED` | 交易日检查：默认 `true`，非交易日跳过执行；设为 `false` 或使用 `--force-run` 可强制执行（Issue #373） | `true` |
 | `SCHEDULE_ENABLED` | 启用定时任务 | `false` |
 | `SCHEDULE_TIME` | 定时执行时间 | `18:00` |
@@ -630,7 +631,7 @@ docker run -e SCHEDULE_ENABLED=true -e SCHEDULE_RUN_IMMEDIATELY=false ...
 - 使用 `exchange-calendars` 区分 A 股 / 港股 / 美股各自的交易日历（含节假日）
 - 混合持仓时，每只股票只在其市场开市日分析，休市股票当日跳过
 - 全部相关市场均为非交易日时，整体跳过执行（不启动 pipeline、不发推送）
-- `MARKET_REVIEW_REGION=both` 表示 **多市场复盘全集**；开启交易日检查时会自动收敛为当日开市子集（`cn` / `hk` / `us` / `cn,hk` / `cn,us` / `hk,us` / `both`），其中 `both` 表示 A 股 + 港股 + 美股都开市
+- `MARKET_REVIEW_REGION=both` 表示 **多市场复盘全集**；开启交易日检查时会自动收敛为当日开市子集（`cn` / `hk` / `us` / `cn,hk` / `cn,us` / `hk,us` / `cn,hk,us`）
 - 断点续传和 `--dry-run` 的“数据已存在”判断共用同一套“最新可复用交易日”解析逻辑，不再直接使用服务器自然日
 - `最新可复用交易日` 会按股票所属市场的本地时区解析：A 股使用 `Asia/Shanghai`，港股使用 `Asia/Hong_Kong`，美股使用 `America/New_York`
 - 非交易日（周末 / 节假日）运行时，会回退到最近一个交易日检查本地数据；若该交易日数据已存在，则跳过重复抓取，否则继续补数
@@ -1198,6 +1199,7 @@ A: 检查是否启用了 Actions，以及 cron 表达式是否正确（注意是
 - 卖出会先校验可用数量，超卖返回 `409 portfolio_oversell`；并发写入冲突时可能返回 `409 portfolio_busy`。
 - 汇率刷新会先尝试在线源；若在线获取失败，则回退到最近一次缓存并标记 `is_stale=true`，避免快照和风险页整体不可用。
 - 当 `PORTFOLIO_FX_UPDATE_ENABLED=false` 时，手动刷新接口会明确返回“在线刷新已禁用”，页面不会误导为“当前没有可刷新的汇率对”。
+- 持仓快照的 `positions[]` 会返回 `price_source`、`price_date`、`price_stale`、`price_available` 等价格元信息；当天快照优先使用历史收盘价，仅在收盘价缺失时尝试实时价 fallback，历史 `as_of` 快照不会拉取实时价，也不会再把成本价静默当作现价；缺价持仓会标记 `price_available=false` 并从市值与未实现盈亏汇总中排除。
 - 风险摘要包含集中度、回撤、止损接近度等信息；`sector_concentration` 会优先尝试按板块归类，失败时降级到 `UNCLASSIFIED`，不会阻断风险结果返回。
 
 ### Agent 读取持仓

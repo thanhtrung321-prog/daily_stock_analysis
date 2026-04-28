@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 """
 ===================================
-股票智能分析系统 - 大盘复盘模块
+股票智能分析系统 - 大盘复盘模块（支持 A 股 / 港股 / 美股）
 ===================================
 
 职责：
-1. 根据 MARKET_REVIEW_REGION 配置选择市场区域（cn / us / both，多市场模式包含港股）
+1. 根据 MARKET_REVIEW_REGION 配置选择市场区域（cn / hk / us / both）
 2. 执行大盘复盘分析并生成复盘报告
 3. 保存和发送复盘报告
 """
@@ -25,7 +25,6 @@ from src.services.market_review_hotspot_service import MarketReviewHotspotServic
 
 
 logger = logging.getLogger(__name__)
-_OVERRIDE_REGION_UNSET = object()
 
 
 def _get_market_review_text(language: str) -> dict[str, str]:
@@ -73,6 +72,24 @@ def _append_cn_hotspot_sections(
         return review_report
 
 
+def _append_cn_hotspot_part(
+    parts: list[str],
+    *,
+    cn_title: str,
+    language: str,
+) -> list[str]:
+    prefix = f"{cn_title}\n\n"
+    updated_parts = list(parts)
+    for index, part in enumerate(updated_parts):
+        if not part.startswith(prefix):
+            continue
+        updated_body = _append_cn_hotspot_sections(part[len(prefix):], language)
+        if updated_body:
+            updated_parts[index] = f"{prefix}{updated_body}"
+        return updated_parts
+    return updated_parts
+
+
 def _resolve_run_markets(
     region: str,
     *,
@@ -107,7 +124,7 @@ def run_market_review(
     search_service: Optional[SearchService] = None,
     send_notification: bool = True,
     merge_notification: bool = False,
-    override_region: Optional[str] | object = _OVERRIDE_REGION_UNSET,
+    override_region: Optional[str] = None,
 ) -> Optional[str]:
     """
     执行大盘复盘分析
@@ -118,11 +135,7 @@ def run_market_review(
         search_service: 搜索服务（可选）
         send_notification: 是否发送通知
         merge_notification: 是否合并推送（跳过本次推送，由 main 层合并个股+大盘后统一发送，Issue #190）
-        override_region:
-            覆盖 config 的 market_review_region（Issue #373 交易日过滤后有效子集）。
-            未传入时沿用配置值，并保持既有配置/force-run 语义，不在此处额外收敛 both。
-            显式传入 None 时，沿用配置值但跳过本函数内对 both 的交易日过滤。
-            both 表示多市场全集，可能在主流程中被收敛为 cn/hk/us 或逗号拼接子集。
+        override_region: 覆盖 config 的 market_review_region（Issue #373 交易日过滤后有效子集）
 
     Returns:
         复盘报告文本
@@ -132,55 +145,58 @@ def run_market_review(
     review_text = _get_market_review_text(getattr(config, "report_language", "zh"))
     review_language = getattr(config, "report_language", "zh")
     configured_region = getattr(config, 'market_review_region', 'cn') or 'cn'
-    if override_region is _OVERRIDE_REGION_UNSET:
-        region = configured_region
-        restrict_to_open_markets = False
-    elif override_region is None:
-        region = configured_region
-        restrict_to_open_markets = False
-    else:
-        region = override_region
-        restrict_to_open_markets = True
-    all_markets = [('cn', 'cn_title', 'A 股'), ('hk', 'hk_title', '港股'), ('us', 'us_title', '美股')]
-    run_markets = _resolve_run_markets(
-        region,
-        restrict_to_open_markets=restrict_to_open_markets,
+    region = (
+        override_region
+        if override_region is not None
+        else configured_region
     )
+    _ALL_MARKETS = [('cn', 'cn_title', 'A 股'), ('hk', 'hk_title', '港股'), ('us', 'us_title', '美股')]
+    _VALID_SINGLES = {'cn', 'us', 'hk'}
+
+    # Determine which markets to run.
+    # region can be: 'cn', 'hk', 'us', 'both', or a comma-joined subset like 'cn,us'.
+    if ',' in region:
+        run_markets = [m.strip() for m in region.split(',') if m.strip() in _VALID_SINGLES]
+    elif region == 'both':
+        run_markets = list(_VALID_SINGLES)
+    elif region in _VALID_SINGLES:
+        run_markets = [region]
+    else:
+        run_markets = ['cn']
 
     try:
         if len(run_markets) > 1:
+            # 多市场顺序执行，合并报告
             parts = []
-            for market, title_key, label in all_markets:
-                if market not in run_markets:
+            for mkt, title_key, label in _ALL_MARKETS:
+                if mkt not in run_markets:
                     continue
                 logger.info("生成 %s 大盘复盘报告...", label)
-                market_analyzer = MarketAnalyzer(
-                    search_service=search_service,
-                    analyzer=analyzer,
-                    region=market,
+                mkt_analyzer = MarketAnalyzer(
+                    search_service=search_service, analyzer=analyzer, region=mkt
                 )
-                market_report = market_analyzer.run_daily_review()
-                if not market_report:
-                    continue
-                if market == 'cn':
-                    market_report = _append_cn_hotspot_sections(
-                        market_report,
-                        review_language,
+                mkt_report = mkt_analyzer.run_daily_review()
+                if mkt_report:
+                    parts.append(f"{review_text[title_key]}\n\n{mkt_report}")
+            if parts:
+                review_report = f"\n\n---\n\n{review_text['separator']}\n\n".join(
+                    _append_cn_hotspot_part(
+                        parts,
+                        cn_title=review_text['cn_title'],
+                        language=review_language,
                     )
-                parts.append(f"{review_text[title_key]}\n\n{market_report}")
-            review_report = (
-                f"\n\n---\n\n{review_text['separator']}\n\n".join(parts)
-                if parts
-                else None
-            )
+                )
+            else:
+                review_report = None
         else:
+            single_region = (run_markets or ['cn'])[0]
             market_analyzer = MarketAnalyzer(
                 search_service=search_service,
                 analyzer=analyzer,
-                region=run_markets[0],
+                region=single_region,
             )
             review_report = market_analyzer.run_daily_review()
-            if run_markets[0] == 'cn':
+            if single_region == 'cn':
                 review_report = _append_cn_hotspot_sections(
                     review_report,
                     review_language,
