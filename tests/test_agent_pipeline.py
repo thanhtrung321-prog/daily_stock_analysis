@@ -99,6 +99,46 @@ class TestAgentConfig(unittest.TestCase):
         self.assertEqual(config.agent_litellm_model, 'openai/gpt-4o-mini')
         self.assertTrue(config.is_agent_available())
 
+    def test_agent_models_to_try_inherit_legacy_provider_models(self):
+        """Legacy provider key/model envs should still produce a non-empty Agent model try list."""
+        from src.config import Config, get_effective_agent_models_to_try
+
+        test_cases = [
+            (
+                {
+                    "GEMINI_API_KEY": "gemini-test-key",
+                    "GEMINI_MODEL": "gemini-2.5-flash",
+                    "AGENT_LITELLM_MODEL": "",
+                },
+                "gemini/gemini-2.5-flash",
+            ),
+            (
+                {
+                    "OPENAI_API_KEY": "sk-test-value",
+                    "OPENAI_MODEL": "gpt-4o-mini",
+                    "AGENT_LITELLM_MODEL": "",
+                },
+                "openai/gpt-4o-mini",
+            ),
+            (
+                {
+                    "ANTHROPIC_API_KEY": "anthropic-test-key",
+                    "ANTHROPIC_MODEL": "claude-3-5-sonnet-20241022",
+                    "AGENT_LITELLM_MODEL": "",
+                },
+                "anthropic/claude-3-5-sonnet-20241022",
+            ),
+        ]
+
+        with patch("src.config.setup_env"), patch.object(Config, "_parse_litellm_yaml", return_value=[]):
+            for env, expected_model in test_cases:
+                with self.subTest(expected_model=expected_model), patch.dict(os.environ, env, clear=True):
+                    Config._instance = None
+                    config = Config._load_from_env()
+                    self.assertEqual(get_effective_agent_models_to_try(config), [expected_model])
+
+        Config._instance = None
+
 
 class TestAgentFactorySkillBaseline(unittest.TestCase):
     """Ensure explicit skill selection does not silently re-apply the default bull-trend baseline."""
