@@ -121,4 +121,26 @@ describe('agentChatStore.startStream', () => {
       rawMessage: 'connect timeout while calling upstream provider',
     });
   });
+
+  it('falls back when SSE error fields are empty strings', async () => {
+    vi.mocked(agentApi.chatStream).mockResolvedValue(
+      createStreamResponse([
+        'data: {"type":"error","error":"","message":"   ","content":""}',
+      ]),
+    );
+
+    await useAgentChatStore
+      .getState()
+      .startStream({ message: '分析茅台', session_id: 'session-test' }, { skillName: '趋势技能' });
+
+    const state = useAgentChatStore.getState();
+    expect(state.loading).toBe(false);
+    expect(state.messages).toHaveLength(1);
+    expect(state.chatError).toMatchObject({
+      title: '请求失败',
+      message: '分析出错',
+      category: 'unknown',
+      rawMessage: '分析出错',
+    });
+  });
 });

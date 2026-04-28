@@ -43,11 +43,35 @@ type StreamFailureEvent = {
   message?: unknown;
 };
 
+function getFirstMeaningfulStreamError(...candidates: Array<unknown>): unknown {
+  for (const candidate of candidates) {
+    if (typeof candidate === 'string') {
+      if (candidate.trim() !== '') {
+        return candidate;
+      }
+      continue;
+    }
+
+    if (candidate != null) {
+      return candidate;
+    }
+  }
+
+  return undefined;
+}
+
 function getStreamFailureError(
   event: StreamFailureEvent,
   fallbackMessage: string,
 ): ParsedApiError {
-  return getParsedApiError(event.error ?? event.message ?? event.content ?? fallbackMessage);
+  return getParsedApiError(
+    getFirstMeaningfulStreamError(
+      event.error,
+      event.message,
+      event.content,
+      fallbackMessage,
+    ),
+  );
 }
 
 interface AgentChatState {
