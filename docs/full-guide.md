@@ -310,7 +310,9 @@ daily_stock_analysis/
 > - TickFlow 实际返回的 `change_pct` / `amplitude` 为比例值；系统已在接入层统一转换为百分比值，确保与现有数据源字段语义一致。
 > - A 股大盘复盘报告采用盘后工作台式结构：固定包含盘面温度、指数明细、板块 Top 表、新闻催化、明日交易计划和风险提示；若部分数据源缺失，则保留可用区块并在对应位置降级展示。
 > - 在上述固定结构之后，系统会仅对 A 股复盘追加“热门板块 / 热门股票”摘要：热门板块按当日涨跌幅 Top N 排序，热门股票按当日涨跌幅优先、成交额次排序（剔除 ETF）；若板块或个股任一数据源缺失，则仅跳过对应追加区块，不影响原有复盘正文和其他区块输出。
+> - 该追加能力复用现有 `DataFetcherManager.get_sector_rankings()` / `get_hot_stocks()` 以及 TickFlow、efinance、AkShare 的既有 fallback 顺序；它不会改变个股分析、实时行情、LLM 调用或通知配置的优先级。
 > - 上述追加摘要仅影响复盘文案拼装与 A 股行情数据读取：**未新增或修改任何 LLM 模型/provider/Base URL 配置，也未触及运行时配置的保存、清理、迁移或回填逻辑**；已有 `.env` / Web 设置 / GitHub Actions Secrets 与 Variables 的行为保持不变。
+> - 其中 `LITELLM_CONFIG`、`LLM_CHANNELS` 及 legacy `GEMINI_*` / `OPENAI_*` / `ANTHROPIC_*` 配置读取路径完全未改动；本次不会静默迁移、删除或重写旧配置键。
 > - 代码落点仅限 `src/core/market_review.py`、`src/services/market_review_hotspot_service.py`、`data_provider/base.py`、`data_provider/akshare_fetcher.py`、`data_provider/efinance_fetcher.py` 这类复盘拼装与 A 股行情读取路径；本次未新增环境变量、未修改 `.env.example`、未调整 Web/Desktop 设置项或任何 LLM 运行时入口。
 > - 字段契约：
 >   - `fundamental_context.belong_boards` = 个股关联板块列表（当前仅 A 股写入；无数据时为 `[]`）；
