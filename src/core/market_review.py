@@ -5,7 +5,7 @@
 ===================================
 
 职责：
-1. 根据 MARKET_REVIEW_REGION 配置选择市场区域（cn / us / both）
+1. 根据 MARKET_REVIEW_REGION 配置选择市场区域（cn / us / both，多市场模式包含港股）
 2. 执行大盘复盘分析并生成复盘报告
 3. 保存和发送复盘报告
 """
@@ -88,7 +88,7 @@ def _resolve_run_markets(
         return [market for market, _, _ in all_markets if market in requested]
 
     if region == 'both':
-        configured_markets = ['cn', 'us']
+        configured_markets = [market for market, _, _ in all_markets]
         if not restrict_to_open_markets:
             return configured_markets
         open_markets = get_open_markets_today()
@@ -121,6 +121,7 @@ def run_market_review(
         override_region:
             覆盖 config 的 market_review_region（Issue #373 交易日过滤后有效子集）。
             显式传入 None 时，沿用配置值但跳过本函数内对 both 的交易日过滤。
+            both 表示多市场全集，可能在主流程中被收敛为 cn/hk/us 或逗号拼接子集。
 
     Returns:
         复盘报告文本

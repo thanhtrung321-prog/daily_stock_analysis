@@ -1425,7 +1425,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
     },
     "MARKET_REVIEW_REGION": {
         "title": "Market Review Region",
-        "description": "Market region for review: cn (A-shares), us (US stocks), or both.",
+        "description": "Market region for review: cn (A-shares), us (US stocks), or both (multi-market mode, including HK subsets at runtime).",
         "category": "system",
         "data_type": "string",
         "ui_control": "select",

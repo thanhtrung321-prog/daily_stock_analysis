@@ -83,6 +83,8 @@ class MarketReviewLocalizationTestCase(unittest.TestCase):
         notifier = self._make_notifier()
         cn_analyzer = MagicMock()
         cn_analyzer.run_daily_review.return_value = "CN body"
+        hk_analyzer = MagicMock()
+        hk_analyzer.run_daily_review.return_value = "HK body"
         us_analyzer = MagicMock()
         us_analyzer.run_daily_review.return_value = "US body"
         hotspot_service = MagicMock()
@@ -95,7 +97,7 @@ class MarketReviewLocalizationTestCase(unittest.TestCase):
         ), patch.object(
             market_review_module,
             "MarketAnalyzer",
-            side_effect=[cn_analyzer, us_analyzer],
+            side_effect=[cn_analyzer, hk_analyzer, us_analyzer],
         ), patch.object(
             market_review_module,
             "MarketReviewHotspotService",
@@ -105,8 +107,8 @@ class MarketReviewLocalizationTestCase(unittest.TestCase):
 
         self.assertIn("# A-share Market Recap\n\nCN body", result)
         self.assertIn("> Next market recap follows", result)
+        self.assertIn("# HK Market Recap\n\nHK body", result)
         self.assertIn("# US Market Recap\n\nUS body", result)
-        self.assertNotIn("HK Market", result)
         saved_content = notifier.save_report_to_file.call_args.args[0]
         self.assertTrue(saved_content.startswith("# 🎯 Market Review\n\n"))
         notifier.send.assert_not_called()
@@ -179,6 +181,8 @@ class MarketReviewLocalizationTestCase(unittest.TestCase):
         notifier = self._make_notifier()
         cn_analyzer = MagicMock()
         cn_analyzer.run_daily_review.return_value = "CN body"
+        hk_analyzer = MagicMock()
+        hk_analyzer.run_daily_review.return_value = "HK body"
         us_analyzer = MagicMock()
         us_analyzer.run_daily_review.return_value = "US body"
         hotspot_service = MagicMock()
@@ -191,11 +195,11 @@ class MarketReviewLocalizationTestCase(unittest.TestCase):
         ), patch.object(
             market_review_module,
             "get_open_markets_today",
-            return_value={"cn", "us"},
+            return_value={"cn", "hk"},
         ), patch.object(
             market_review_module,
             "MarketAnalyzer",
-            side_effect=[cn_analyzer, us_analyzer],
+            side_effect=[cn_analyzer, hk_analyzer],
         ), patch.object(
             market_review_module,
             "MarketReviewHotspotService",
@@ -204,14 +208,16 @@ class MarketReviewLocalizationTestCase(unittest.TestCase):
             result = run_market_review(notifier, send_notification=False)
 
         self.assertIn("# A股大盘复盘\n\nCN body", result)
-        self.assertIn("# 美股大盘复盘\n\nUS body", result)
-        self.assertNotIn("港股", result)
-        self.assertNotIn("HK body", result)
+        self.assertIn("# 港股大盘复盘\n\nHK body", result)
+        self.assertNotIn("美股", result)
+        self.assertNotIn("US body", result)
 
     def test_run_market_review_explicit_none_override_honors_force_run_for_both(self) -> None:
         notifier = self._make_notifier()
         cn_analyzer = MagicMock()
         cn_analyzer.run_daily_review.return_value = "CN body"
+        hk_analyzer = MagicMock()
+        hk_analyzer.run_daily_review.return_value = "HK body"
         us_analyzer = MagicMock()
         us_analyzer.run_daily_review.return_value = "US body"
         hotspot_service = MagicMock()
@@ -228,7 +234,7 @@ class MarketReviewLocalizationTestCase(unittest.TestCase):
         ) as get_open_markets_today_mock, patch.object(
             market_review_module,
             "MarketAnalyzer",
-            side_effect=[cn_analyzer, us_analyzer],
+            side_effect=[cn_analyzer, hk_analyzer, us_analyzer],
         ), patch.object(
             market_review_module,
             "MarketReviewHotspotService",
@@ -241,8 +247,8 @@ class MarketReviewLocalizationTestCase(unittest.TestCase):
             )
 
         self.assertIn("# A股大盘复盘\n\nCN body", result)
+        self.assertIn("# 港股大盘复盘\n\nHK body", result)
         self.assertIn("# 美股大盘复盘\n\nUS body", result)
-        self.assertNotIn("港股", result)
         get_open_markets_today_mock.assert_not_called()
 
     def test_run_market_review_invalid_comma_region_falls_back_to_cn(self) -> None:
@@ -312,6 +318,8 @@ class MarketReviewLocalizationTestCase(unittest.TestCase):
         notifier = self._make_notifier()
         cn_analyzer = MagicMock()
         cn_analyzer.run_daily_review.return_value = "CN body"
+        hk_analyzer = MagicMock()
+        hk_analyzer.run_daily_review.return_value = "HK body"
         us_analyzer = MagicMock()
         us_analyzer.run_daily_review.return_value = "US body"
         hotspot_service = MagicMock()
@@ -324,7 +332,7 @@ class MarketReviewLocalizationTestCase(unittest.TestCase):
         ), patch.object(
             market_review_module,
             "MarketAnalyzer",
-            side_effect=[cn_analyzer, us_analyzer],
+            side_effect=[cn_analyzer, hk_analyzer, us_analyzer],
         ), patch.object(
             market_review_module,
             "MarketReviewHotspotService",
@@ -334,14 +342,19 @@ class MarketReviewLocalizationTestCase(unittest.TestCase):
 
         cn_index = result.index("# A股大盘复盘\n\nCN body")
         hotspot_index = result.index("### 热门板块")
+        hk_index = result.index("# 港股大盘复盘\n\nHK body")
         us_index = result.index("# 美股大盘复盘\n\nUS body")
         self.assertLess(cn_index, hotspot_index)
+        self.assertLess(hotspot_index, hk_index)
+        self.assertLess(hk_index, us_index)
         self.assertLess(hotspot_index, us_index)
 
     def test_run_market_review_skips_hotspots_when_cn_section_missing_in_both_mode(self) -> None:
         notifier = self._make_notifier()
         cn_analyzer = MagicMock()
         cn_analyzer.run_daily_review.return_value = None
+        hk_analyzer = MagicMock()
+        hk_analyzer.run_daily_review.return_value = "HK body"
         us_analyzer = MagicMock()
         us_analyzer.run_daily_review.return_value = "US body"
         hotspot_service = MagicMock()
@@ -353,7 +366,7 @@ class MarketReviewLocalizationTestCase(unittest.TestCase):
         ), patch.object(
             market_review_module,
             "MarketAnalyzer",
-            side_effect=[cn_analyzer, us_analyzer],
+            side_effect=[cn_analyzer, hk_analyzer, us_analyzer],
         ), patch.object(
             market_review_module,
             "MarketReviewHotspotService",
@@ -361,10 +374,7 @@ class MarketReviewLocalizationTestCase(unittest.TestCase):
         ):
             result = run_market_review(notifier, send_notification=False)
 
-        self.assertEqual(
-            result,
-            "# 美股大盘复盘\n\nUS body",
-        )
+        self.assertEqual(result, "# 港股大盘复盘\n\nHK body\n\n---\n\n> 以下为下一市场大盘复盘\n\n# 美股大盘复盘\n\nUS body")
         hotspot_service.build_markdown.assert_not_called()
 
     def test_run_market_review_hotspot_append_fail_open_on_exception(self) -> None:
