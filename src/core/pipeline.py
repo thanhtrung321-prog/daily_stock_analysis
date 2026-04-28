@@ -1003,7 +1003,11 @@ class StockAnalysisPipeline:
 
         from src.agent.protocols import normalize_decision_signal
 
-        signal_name = getattr(buy_signal, "name", "").lower()
+        signal_candidates = (
+            getattr(buy_signal, "name", None),
+            getattr(buy_signal, "value", None),
+            buy_signal,
+        )
         signal_to_decision = {
             "strong_buy": "buy",
             "buy": "buy",
@@ -1011,8 +1015,22 @@ class StockAnalysisPipeline:
             "wait": "hold",
             "sell": "sell",
             "strong_sell": "sell",
+            "强烈买入": "buy",
+            "买入": "buy",
+            "持有": "hold",
+            "观望": "hold",
+            "卖出": "sell",
+            "强烈卖出": "sell",
         }
-        result.decision_type = signal_to_decision.get(signal_name, result.decision_type or "hold")
+        normalized_signal = next(
+            (
+                str(candidate).strip().lower()
+                for candidate in signal_candidates
+                if candidate is not None and str(candidate).strip()
+            ),
+            "",
+        )
+        result.decision_type = signal_to_decision.get(normalized_signal, result.decision_type or "hold")
         result.decision_type = normalize_decision_signal(result.decision_type)
         result.data_sources = f"{result.data_sources},trend:fallback" if result.data_sources else "trend:fallback"
 

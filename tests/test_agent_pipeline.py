@@ -528,6 +528,10 @@ class TestAgentResultConversion(unittest.TestCase):
         cases = [
             (BuySignal.STRONG_BUY, "buy", "强烈买入"),
             (BuySignal.STRONG_SELL, "sell", "强烈卖出"),
+            ("strong_buy", "buy", "strong_buy"),
+            ("strong_sell", "sell", "strong_sell"),
+            ("强烈买入", "buy", "强烈买入"),
+            ("强烈卖出", "sell", "强烈卖出"),
         ]
 
         for buy_signal, expected_decision, expected_advice in cases:
