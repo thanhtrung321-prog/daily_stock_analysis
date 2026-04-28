@@ -12,7 +12,7 @@ except ModuleNotFoundError:
 
     ensure_litellm_stub()
 
-from src.analyzer import GeminiAnalyzer, _BULLISH_TREND_HINTS, _contains_trend_hint
+from src.analyzer import GeminiAnalyzer, _BULLISH_TREND_HINTS, _contains_trend_hint, _infer_trend_direction
 
 
 class AnalyzerNewsPromptTestCase(unittest.TestCase):
@@ -26,6 +26,14 @@ class AnalyzerNewsPromptTestCase(unittest.TestCase):
                 "不是多头排列，后续放量后再次出现多头排列信号。",
                 _BULLISH_TREND_HINTS,
             )
+        )
+
+    def test_contains_trend_hint_ignores_single_character_prefixes_in_common_words(self) -> None:
+        self.assertTrue(_contains_trend_hint("非常明显的多头排列，趋势仍在延续。", _BULLISH_TREND_HINTS))
+        self.assertTrue(_contains_trend_hint("未来上升趋势若放量将进一步确认。", _BULLISH_TREND_HINTS))
+        self.assertEqual(
+            _infer_trend_direction({"trend_status": "非常明显的多头排列", "ma_alignment": "未来上升趋势逐步明确"}),
+            "bullish",
         )
 
     def test_analysis_prompt_resolves_shared_skill_prompt_state_by_default(self) -> None:

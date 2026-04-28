@@ -175,7 +175,7 @@ _BEARISH_TREND_HINTS: Tuple[str, ...] = (
     "bearish",
     "downtrend",
 )
-_NEGATION_TOKENS: Tuple[str, ...] = ("未", "非", "不是", "并非", "尚未", "不属", "not ", "no ")
+_NEGATION_TOKENS: Tuple[str, ...] = ("不是", "并非", "尚未", "不属", "not ", "no ")
 _NEGATION_BREAK_CHARS: Tuple[str, ...] = (",", ".", ";", ":", "!", "?", "，", "。", "；", "：", "！", "？", "\n")
 _NEGATION_LOOKBACK_CHARS = 16
 _NEGATION_MAX_GAP_CHARS = 8
