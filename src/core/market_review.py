@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 """
 ===================================
-股票智能分析系统 - 大盘复盘模块（支持 A 股 / 港股 / 美股）
+股票智能分析系统 - 大盘复盘模块
 ===================================
 
 职责：
-1. 根据 MARKET_REVIEW_REGION 配置选择市场区域（cn / hk / us / both）
+1. 根据 MARKET_REVIEW_REGION 配置选择市场区域（cn / us / both）
 2. 执行大盘复盘分析并生成复盘报告
 3. 保存和发送复盘报告
 """
@@ -88,10 +88,11 @@ def _resolve_run_markets(
         return [market for market, _, _ in all_markets if market in requested]
 
     if region == 'both':
+        configured_markets = ['cn', 'us']
         if not restrict_to_open_markets:
-            return [market for market, _, _ in all_markets]
+            return configured_markets
         open_markets = get_open_markets_today()
-        requested = [market for market, _, _ in all_markets if market in open_markets]
+        requested = [market for market in configured_markets if market in open_markets]
         return requested or ['cn']
 
     if region in valid_singles:

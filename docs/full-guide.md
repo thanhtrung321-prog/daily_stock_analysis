@@ -336,7 +336,7 @@ daily_stock_analysis/
 | `TRUST_X_FORWARDED_FOR` | 单层可信反向代理部署时设为 `true`，取 `X-Forwarded-For` 最右值作为真实客户端 IP（用于登录限流等）；直连公网时保持 `false` 防伪造。多级代理/CDN 场景下限流 key 可能退化为边缘代理 IP，需额外评估 | `false` |
 | `MAX_WORKERS` | 并发线程数 | `3` |
 | `MARKET_REVIEW_ENABLED` | 启用大盘复盘 | `true` |
-| `MARKET_REVIEW_REGION` | 大盘复盘市场区域：cn(A股)、hk(港股)、us(美股)、both(三市场)，us 适合仅关注美股的用户 | `cn` |
+| `MARKET_REVIEW_REGION` | 大盘复盘市场区域：cn(A股)、us(美股)、both(A股+美股)；常规定时/手动运行会先按当日开市子集收敛，`--force-run` 或 `TRADING_DAY_CHECK_ENABLED=false` 才保留配置原值 | `cn` |
 | `TRADING_DAY_CHECK_ENABLED` | 交易日检查：默认 `true`，非交易日跳过执行；设为 `false` 或使用 `--force-run` 可强制执行（Issue #373） | `true` |
 | `SCHEDULE_ENABLED` | 启用定时任务 | `false` |
 | `SCHEDULE_TIME` | 定时执行时间 | `18:00` |
@@ -629,11 +629,13 @@ docker run -e SCHEDULE_ENABLED=true -e SCHEDULE_RUN_IMMEDIATELY=false ...
 - 使用 `exchange-calendars` 区分 A 股 / 港股 / 美股各自的交易日历（含节假日）
 - 混合持仓时，每只股票只在其市场开市日分析，休市股票当日跳过
 - 全部相关市场均为非交易日时，整体跳过执行（不启动 pipeline、不发推送）
+- `MARKET_REVIEW_REGION=both` 仅表示 **A 股 + 美股** 双市场复盘；开启交易日检查时会自动收敛为当日开市子集（`cn` / `us` / `both`），不会额外扩展为港股复盘
 - 断点续传和 `--dry-run` 的“数据已存在”判断共用同一套“最新可复用交易日”解析逻辑，不再直接使用服务器自然日
 - `最新可复用交易日` 会按股票所属市场的本地时区解析：A 股使用 `Asia/Shanghai`，港股使用 `Asia/Hong_Kong`，美股使用 `America/New_York`
 - 非交易日（周末 / 节假日）运行时，会回退到最近一个交易日检查本地数据；若该交易日数据已存在，则跳过重复抓取，否则继续补数
 - 交易日盘中或收盘前运行时，会以上一个已完成交易日作为复用目标；交易日收盘后运行时，当日数据已存在则可直接跳过，不存在则继续抓取
 - 覆盖方式：`TRADING_DAY_CHECK_ENABLED=false` 或 命令行 `--force-run`
+- 本次“大盘复盘热门板块 / 热门股票”追加摘要仅改动 A 股复盘正文拼装与行情 fallback，不涉及 LLM provider、Base URL、模型默认值，也不会迁移或改写现有运行时配置
 
 #### 使用 Crontab
 
