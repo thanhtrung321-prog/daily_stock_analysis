@@ -218,7 +218,7 @@ export const useAgentChatStore = create<AgentChatState & AgentChatActions>((set,
     set({ abortController: ac });
 
     const streamSessionId = payload.session_id || storeSessionId;
-    const skillName = meta?.skillName ?? '通用';
+    const skillName = meta?.skillName ?? 'Chung';
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -261,14 +261,14 @@ export const useAgentChatStore = create<AgentChatState & AgentChatActions>((set,
           if (event.type === 'done') {
             const doneEvent = event as unknown as StreamFailureEvent;
             if (doneEvent.success === false) {
-              throw getStreamFailureError(doneEvent, '大模型调用出错，请检查 API Key 配置');
+              throw getStreamFailureError(doneEvent, 'Gọi mô hình thất bại, vui lòng kiểm tra cấu hình API Key');
             }
             finalContent = doneEvent.content ?? '';
             return;
           }
 
           if (event.type === 'error') {
-            throw getStreamFailureError(event as unknown as StreamFailureEvent, '分析出错');
+            throw getStreamFailureError(event as unknown as StreamFailureEvent, 'Phân tích gặp lỗi');
           }
 
         currentProgressSteps.push(event);
@@ -314,7 +314,7 @@ export const useAgentChatStore = create<AgentChatState & AgentChatActions>((set,
             {
               id: (Date.now() + 1).toString(),
               role: 'assistant',
-              content: finalContent || '（无内容）',
+              content: finalContent || '(Không có nội dung)',
               skill: payload.skills?.[0],
               skillName,
               thinkingSteps: [...currentProgressSteps],

@@ -51,6 +51,8 @@ Requirements:
 """
             if report_language == "en":
                 return prompt + "\nAlways answer in English.\n"
+            if report_language == "vi":
+                return prompt + "\nLuôn trả lời bằng tiếng Việt.\n"
             return prompt + "\n默认使用中文回答。\n"
 
         skills = ""
@@ -108,6 +110,14 @@ new decision_type values.
 - Keep every JSON key unchanged.
 - `decision_type` must remain `buy|hold|sell`.
 - Write all human-readable JSON values in English.
+"""
+        if report_language == "vi":
+            return prompt + """
+
+## Ngôn ngữ đầu ra
+- Giữ nguyên mọi key JSON.
+- `decision_type` phải giữ nguyên `buy|hold|sell`.
+- Viết tất cả giá trị người dùng đọc được bằng tiếng Việt.
 """
         return prompt + """
 

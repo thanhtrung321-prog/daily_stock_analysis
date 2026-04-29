@@ -33,6 +33,7 @@ from src.notification import NotificationService, NotificationChannel
 from src.report_language import (
     get_unknown_text,
     localize_confidence_level,
+    localize_operation_advice,
     normalize_report_language,
 )
 from src.search_service import SearchService
@@ -817,6 +818,8 @@ class StockAnalysisPipeline:
             # 运行 Agent
             if report_language == "en":
                 message = f"Analyze stock {code} ({stock_name}) and return the full decision dashboard JSON in English."
+            elif report_language == "vi":
+                message = f"Hãy phân tích cổ phiếu {code} ({stock_name}) và trả về JSON bảng quyết định đầy đủ bằng tiếng Việt."
             else:
                 message = f"请分析股票 {code} ({stock_name})，并生成决策仪表盘报告。"
             agent_result = executor.run(message, context=initial_context)
@@ -915,8 +918,8 @@ class StockAnalysisPipeline:
             code=code,
             name=stock_name,
             sentiment_score=50,
-            trend_prediction="Unknown" if report_language == "en" else "未知",
-            operation_advice="Watch" if report_language == "en" else "观望",
+            trend_prediction=get_unknown_text(report_language),
+            operation_advice=localize_operation_advice("watch", report_language),
             confidence_level=localize_confidence_level("medium", report_language),
             report_language=report_language,
             success=agent_result.success,
@@ -931,24 +934,29 @@ class StockAnalysisPipeline:
             if ai_stock_name and self._is_placeholder_stock_name(stock_name, code):
                 result.name = ai_stock_name
             result.sentiment_score = self._safe_int(dash.get("sentiment_score"), 50)
-            result.trend_prediction = dash.get("trend_prediction", "Unknown" if report_language == "en" else "未知")
-            raw_advice = dash.get("operation_advice", "Watch" if report_language == "en" else "观望")
+            result.trend_prediction = dash.get("trend_prediction", get_unknown_text(report_language))
+            raw_advice = dash.get("operation_advice", localize_operation_advice("watch", report_language))
             if isinstance(raw_advice, dict):
                 # LLM may return {"no_position": "...", "has_position": "..."}
                 # Derive a short string from decision_type for the scalar field
                 _signal_to_advice = {
-                    "buy": "Buy" if report_language == "en" else "买入",
-                    "sell": "Sell" if report_language == "en" else "卖出",
-                    "hold": "Hold" if report_language == "en" else "持有",
-                    "strong_buy": "Strong Buy" if report_language == "en" else "强烈买入",
-                    "strong_sell": "Strong Sell" if report_language == "en" else "强烈卖出",
+                    "buy": localize_operation_advice("buy", report_language),
+                    "sell": localize_operation_advice("sell", report_language),
+                    "hold": localize_operation_advice("hold", report_language),
+                    "strong_buy": localize_operation_advice("strong_buy", report_language),
+                    "strong_sell": localize_operation_advice("strong_sell", report_language),
                 }
                 # Normalize decision_type (strip/lower) before lookup so
                 # variants like "BUY" or " Buy " map correctly.
                 raw_dt = str(dash.get("decision_type") or "hold").strip().lower()
-                result.operation_advice = _signal_to_advice.get(raw_dt, "Watch" if report_language == "en" else "观望")
+                result.operation_advice = _signal_to_advice.get(
+                    raw_dt,
+                    localize_operation_advice("watch", report_language),
+                )
             else:
-                result.operation_advice = str(raw_advice) if raw_advice else ("Watch" if report_language == "en" else "观望")
+                result.operation_advice = (
+                    str(raw_advice) if raw_advice else localize_operation_advice("watch", report_language)
+                )
             from src.agent.protocols import normalize_decision_signal
 
             result.decision_type = normalize_decision_signal(
@@ -967,7 +975,12 @@ class StockAnalysisPipeline:
         else:
             self._apply_trend_fallback(result, trend_result, report_language)
             if not result.error_message:
-                result.error_message = "Agent failed to generate a valid decision dashboard" if report_language == "en" else "Agent 未能生成有效的决策仪表盘"
+                if report_language == "en":
+                    result.error_message = "Agent failed to generate a valid decision dashboard"
+                elif report_language == "vi":
+                    result.error_message = "Agent chưa tạo được bảng quyết định hợp lệ"
+                else:
+                    result.error_message = "Agent 未能生成有效的决策仪表盘"
 
         return result
 
@@ -979,7 +992,7 @@ class StockAnalysisPipeline:
     ) -> None:
         if trend_result is None:
             result.sentiment_score = 50
-            result.operation_advice = "Watch" if report_language == "en" else "观望"
+            result.operation_advice = localize_operation_advice("watch", report_language)
             return
 
         score = getattr(trend_result, "signal_score", None)
@@ -999,7 +1012,7 @@ class StockAnalysisPipeline:
         if signal_label:
             result.operation_advice = signal_label
         else:
-            result.operation_advice = "Watch" if report_language == "en" else "观望"
+            result.operation_advice = localize_operation_advice("watch", report_language)
 
         from src.agent.protocols import normalize_decision_signal
 

@@ -36,6 +36,15 @@ def _get_market_review_text(language: str) -> dict[str, str]:
             "hk_title": "# HK Market Recap",
             "separator": "> Next market recap follows",
         }
+    if normalized == "vi":
+        return {
+            "root_title": "# 🎯 Tổng Quan Thị Trường",
+            "push_title": "🎯 Tổng Quan Thị Trường",
+            "cn_title": "# Tổng Quan Thị Trường A-share",
+            "us_title": "# Tổng Quan Thị Trường Mỹ",
+            "hk_title": "# Tổng Quan Thị Trường Hồng Kông",
+            "separator": "> Phần tổng quan thị trường tiếp theo",
+        }
     return {
         "root_title": "# 🎯 大盘复盘",
         "push_title": "🎯 大盘复盘",

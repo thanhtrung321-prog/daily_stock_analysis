@@ -25,6 +25,7 @@ def _make_result(
     name: str = "贵州茅台",
     sentiment_score: int = 72,
     operation_advice: str = "持有",
+    trend_prediction: str = "看多",
     analysis_summary: str = "稳健",
     decision_type: str = "hold",
     dashboard: dict = None,
@@ -39,7 +40,7 @@ def _make_result(
     return AnalysisResult(
         code=code,
         name=name,
-        trend_prediction="看多",
+        trend_prediction=trend_prediction,
         sentiment_score=sentiment_score,
         operation_advice=operation_advice,
         analysis_summary=analysis_summary,
@@ -97,6 +98,21 @@ class TestReportRenderer(unittest.TestCase):
         self.assertIn("Decision Dashboard", out)
         self.assertIn("Summary", out)
         self.assertIn("Buy", out)
+
+    def test_render_markdown_in_vietnamese(self) -> None:
+        """Markdown renderer switches headings and labels for Vietnamese reports."""
+        r = _make_result(
+            name="Apple",
+            operation_advice="mua",
+            trend_prediction="tích cực",
+            analysis_summary="Xu hướng đang cải thiện.",
+            report_language="vi",
+        )
+        out = render("markdown", [r], summary_only=True)
+        self.assertIsNotNone(out)
+        self.assertIn("Bảng Quyết Định", out)
+        self.assertIn("Tóm Tắt Kết Quả", out)
+        self.assertIn("Mua", out)
 
     def test_render_markdown_market_snapshot_uses_template_context(self) -> None:
         """Market snapshot macro should render localized labels with template context."""

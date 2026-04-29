@@ -104,8 +104,10 @@ async def get_agent_models():
 def _build_skills_response(config) -> SkillsResponse:
     from src.agent.factory import get_skill_manager
     from src.agent.skills.defaults import get_primary_default_skill_id
+    from src.agent.skills.i18n import localize_skill_summary
 
     skill_manager = get_skill_manager(config)
+    report_language = getattr(config, "report_language", "zh")
     available_skills = sorted(
         [
             skill
@@ -118,10 +120,21 @@ def _build_skills_response(config) -> SkillsResponse:
             skill.name,
         ),
     )
-    skills = [
-        SkillInfo(id=skill.name, name=skill.display_name, description=skill.description)
-        for skill in available_skills
-    ]
+    skills = []
+    for skill in available_skills:
+        localized_name, localized_description = localize_skill_summary(
+            skill.name,
+            skill.display_name,
+            skill.description,
+            report_language,
+        )
+        skills.append(
+            SkillInfo(
+                id=skill.name,
+                name=localized_name,
+                description=localized_description,
+            )
+        )
     return SkillsResponse(
         skills=skills,
         default_skill_id=get_primary_default_skill_id(available_skills),

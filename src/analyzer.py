@@ -42,12 +42,23 @@ from src.report_language import (
     infer_decision_type_from_advice,
     localize_chip_health,
     localize_confidence_level,
+    localize_operation_advice,
+    localize_trend_prediction,
     normalize_report_language,
 )
 from src.schemas.report_schema import AnalysisReportSchema
 from src.market_context import get_market_role, get_market_guidelines
 
 logger = logging.getLogger(__name__)
+
+
+def _language_text(language: str, *, zh: str, en: str, vi: str) -> str:
+    normalized = normalize_report_language(language)
+    if normalized == "en":
+        return en
+    if normalized == "vi":
+        return vi
+    return zh
 
 
 class _LiteLLMStreamError(RuntimeError):
@@ -346,7 +357,7 @@ class AnalysisResult:
     operation_advice: str  # 操作建议：买入/加仓/持有/减仓/卖出/观望
     decision_type: str = "hold"  # 决策类型：buy/hold/sell（用于统计）
     confidence_level: str = "中"  # 置信度：高/中/低
-    report_language: str = "zh"  # 报告输出语言：zh/en
+    report_language: str = "zh"  # 报告输出语言：zh/en/vi
 
     # ========== 决策仪表盘 (新增) ==========
     dashboard: Optional[Dict[str, Any]] = None  # 完整的决策仪表盘数据
@@ -918,6 +929,17 @@ class GeminiAnalyzer:
 - Use the common English company name when you are confident; otherwise keep the original listed company name instead of inventing one.
 - This includes `stock_name`, `trend_prediction`, `operation_advice`, `confidence_level`, nested dashboard text, checklist items, and all narrative summaries.
 """
+        if lang == "vi":
+            return base_prompt + """
+
+## Ngôn ngữ đầu ra (ưu tiên cao nhất)
+
+- Giữ nguyên tất cả key JSON.
+- `decision_type` phải giữ nguyên `buy|hold|sell`.
+- Tất cả giá trị người dùng đọc được phải viết bằng tiếng Việt tự nhiên, rõ ràng.
+- Có thể giữ nguyên tên công ty niêm yết nếu không chắc tên tiếng Việt phổ biến; không bịa tên công ty.
+- Bao gồm `stock_name`, `trend_prediction`, `operation_advice`, `confidence_level`, toàn bộ nội dung dashboard lồng nhau, checklist và mọi phần tóm tắt.
+"""
         return base_prompt + """
 
 ## 输出语言（最高优先级）
@@ -1330,13 +1352,28 @@ class GeminiAnalyzer:
                 code=code,
                 name=name,
                 sentiment_score=50,
-                trend_prediction='Sideways' if report_language == "en" else '震荡',
-                operation_advice='Hold' if report_language == "en" else '持有',
-                confidence_level='Low' if report_language == "en" else '低',
-                analysis_summary='AI analysis is unavailable because no API key is configured.' if report_language == "en" else 'AI 分析功能未启用（未配置 API Key）',
-                risk_warning='Configure an LLM API key (GEMINI_API_KEY/ANTHROPIC_API_KEY/OPENAI_API_KEY) and retry.' if report_language == "en" else '请配置 LLM API Key（GEMINI_API_KEY/ANTHROPIC_API_KEY/OPENAI_API_KEY）后重试',
+                trend_prediction=localize_trend_prediction('sideways', report_language),
+                operation_advice=localize_operation_advice('hold', report_language),
+                confidence_level=localize_confidence_level('low', report_language),
+                analysis_summary=_language_text(
+                    report_language,
+                    zh='AI 分析功能未启用（未配置 API Key）',
+                    en='AI analysis is unavailable because no API key is configured.',
+                    vi='Chưa thể phân tích bằng AI vì chưa cấu hình API Key.',
+                ),
+                risk_warning=_language_text(
+                    report_language,
+                    zh='请配置 LLM API Key（GEMINI_API_KEY/ANTHROPIC_API_KEY/OPENAI_API_KEY）后重试',
+                    en='Configure an LLM API key (GEMINI_API_KEY/ANTHROPIC_API_KEY/OPENAI_API_KEY) and retry.',
+                    vi='Hãy cấu hình LLM API Key (GEMINI_API_KEY/ANTHROPIC_API_KEY/OPENAI_API_KEY) rồi thử lại.',
+                ),
                 success=False,
-                error_message='LLM API key is not configured' if report_language == "en" else 'LLM API Key 未配置',
+                error_message=_language_text(
+                    report_language,
+                    zh='LLM API Key 未配置',
+                    en='LLM API key is not configured',
+                    vi='Chưa cấu hình LLM API Key',
+                ),
                 model_used=None,
                 report_language=report_language,
             )
@@ -1447,11 +1484,21 @@ class GeminiAnalyzer:
                 code=code,
                 name=name,
                 sentiment_score=50,
-                trend_prediction='Sideways' if report_language == "en" else '震荡',
-                operation_advice='Hold' if report_language == "en" else '持有',
-                confidence_level='Low' if report_language == "en" else '低',
-                analysis_summary=(f'Analysis failed: {str(e)[:100]}' if report_language == "en" else f'分析过程出错: {str(e)[:100]}'),
-                risk_warning='Analysis failed. Please retry later or review manually.' if report_language == "en" else '分析失败，请稍后重试或手动分析',
+                trend_prediction=localize_trend_prediction('sideways', report_language),
+                operation_advice=localize_operation_advice('hold', report_language),
+                confidence_level=localize_confidence_level('low', report_language),
+                analysis_summary=_language_text(
+                    report_language,
+                    zh=f'分析过程出错: {str(e)[:100]}',
+                    en=f'Analysis failed: {str(e)[:100]}',
+                    vi=f'Phân tích thất bại: {str(e)[:100]}',
+                ),
+                risk_warning=_language_text(
+                    report_language,
+                    zh='分析失败，请稍后重试或手动分析',
+                    en='Analysis failed. Please retry later or review manually.',
+                    vi='Phân tích thất bại. Vui lòng thử lại sau hoặc tự kiểm tra thủ công.',
+                ),
                 success=False,
                 error_message=str(e),
                 model_used=None,
@@ -1776,6 +1823,17 @@ class GeminiAnalyzer:
 - Use the common English company name when you are confident. If not, keep the listed company name rather than inventing one.
 - When data is missing, explain it in English instead of Chinese.
 """
+        elif report_language == "vi":
+            prompt += f"""
+
+### Yêu cầu ngôn ngữ đầu ra (ưu tiên cao nhất)
+- Giữ nguyên mọi key JSON như định nghĩa phía trên; không dịch key.
+- `decision_type` phải giữ nguyên `buy`, `hold`, hoặc `sell`.
+- Tất cả giá trị người dùng đọc được phải viết bằng tiếng Việt tự nhiên, rõ ràng.
+- Bao gồm `stock_name`, `trend_prediction`, `operation_advice`, `confidence_level`, toàn bộ nội dung dashboard lồng nhau, checklist và mọi trường tóm tắt.
+- Có thể giữ nguyên tên công ty niêm yết nếu không chắc tên tiếng Việt phổ biến; không bịa tên công ty.
+- Khi thiếu dữ liệu, hãy nói bằng tiếng Việt: "{no_data_text}, chưa đủ cơ sở kết luận".
+"""
         else:
             prompt += f"""
 
@@ -1899,6 +1957,22 @@ class GeminiAnalyzer:
                 elif f == "dashboard.battle_plan.sniper_points.stop_loss":
                     lines.append("- dashboard.battle_plan.sniper_points.stop_loss: stop-loss level")
             return "\n".join(lines)
+        if report_language == "vi":
+            lines = ["### Yêu cầu bổ sung: điền các trường bắt buộc còn thiếu dưới đây và xuất lại JSON đầy đủ:"]
+            for f in missing_fields:
+                if f == "sentiment_score":
+                    lines.append("- sentiment_score: điểm tổng hợp từ 0 đến 100")
+                elif f == "operation_advice":
+                    lines.append("- operation_advice: khuyến nghị hành động đã bản địa hóa")
+                elif f == "analysis_summary":
+                    lines.append("- analysis_summary: tóm tắt phân tích ngắn gọn")
+                elif f == "dashboard.core_conclusion.one_sentence":
+                    lines.append("- dashboard.core_conclusion.one_sentence: quyết định một câu")
+                elif f == "dashboard.intelligence.risk_alerts":
+                    lines.append("- dashboard.intelligence.risk_alerts: danh sách cảnh báo rủi ro, có thể là mảng rỗng")
+                elif f == "dashboard.battle_plan.sniper_points.stop_loss":
+                    lines.append("- dashboard.battle_plan.sniper_points.stop_loss: mốc cắt lỗ")
+            return "\n".join(lines)
 
         lines = ["### 补全要求：请在上方分析基础上补充以下必填内容，并输出完整 JSON："]
         for f in missing_fields:
@@ -1928,6 +2002,8 @@ class GeminiAnalyzer:
         previous_output = previous_response.strip()
         if normalize_report_language(report_language) == "en":
             prefix = "### The previous output is below. Complete the missing fields based on that output and return the full JSON again. Do not omit existing fields:"
+        elif normalize_report_language(report_language) == "vi":
+            prefix = "### Đây là đầu ra trước đó. Hãy bổ sung các trường còn thiếu dựa trên nội dung này và trả lại JSON đầy đủ. Không bỏ sót trường đã có:"
         else:
             prefix = "### 上一次输出如下，请在该输出基础上补齐缺失字段，并重新输出完整 JSON。不要省略已有字段："
         return "\n\n".join([
@@ -1997,7 +2073,7 @@ class GeminiAnalyzer:
                 # 解析 decision_type，如果没有则根据 operation_advice 推断
                 decision_type = data.get('decision_type', '')
                 if not decision_type:
-                    op = data.get('operation_advice', 'Hold' if report_language == "en" else '持有')
+                    op = data.get('operation_advice', localize_operation_advice('hold', report_language))
                     decision_type = infer_decision_type_from_advice(op, default='hold')
                 
                 return AnalysisResult(
@@ -2005,11 +2081,17 @@ class GeminiAnalyzer:
                     name=name,
                     # 核心指标
                     sentiment_score=int(data.get('sentiment_score', 50)),
-                    trend_prediction=data.get('trend_prediction', 'Sideways' if report_language == "en" else '震荡'),
-                    operation_advice=data.get('operation_advice', 'Hold' if report_language == "en" else '持有'),
+                    trend_prediction=data.get(
+                        'trend_prediction',
+                        localize_trend_prediction('sideways', report_language),
+                    ),
+                    operation_advice=data.get(
+                        'operation_advice',
+                        localize_operation_advice('hold', report_language),
+                    ),
                     decision_type=decision_type,
                     confidence_level=localize_confidence_level(
-                        data.get('confidence_level', 'Medium' if report_language == "en" else '中'),
+                        data.get('confidence_level', localize_confidence_level('medium', report_language)),
                         report_language,
                     ),
                     report_language=report_language,
@@ -2033,13 +2115,29 @@ class GeminiAnalyzer:
                     market_sentiment=data.get('market_sentiment', ''),
                     hot_topics=data.get('hot_topics', ''),
                     # 综合
-                    analysis_summary=data.get('analysis_summary', 'Analysis completed' if report_language == "en" else '分析完成'),
+                    analysis_summary=data.get(
+                        'analysis_summary',
+                        _language_text(
+                            report_language,
+                            zh='分析完成',
+                            en='Analysis completed',
+                            vi='Đã hoàn tất phân tích',
+                        ),
+                    ),
                     key_points=data.get('key_points', ''),
                     risk_warning=data.get('risk_warning', ''),
                     buy_reason=data.get('buy_reason', ''),
                     # 元数据
                     search_performed=data.get('search_performed', False),
-                    data_sources=data.get('data_sources', 'Technical data' if report_language == "en" else '技术面数据'),
+                    data_sources=data.get(
+                        'data_sources',
+                        _language_text(
+                            report_language,
+                            zh='技术面数据',
+                            en='Technical data',
+                            vi='Dữ liệu kỹ thuật',
+                        ),
+                    ),
                     success=True,
                 )
             else:
@@ -2083,33 +2181,44 @@ class GeminiAnalyzer:
         )
         # 尝试识别关键词来判断情绪
         sentiment_score = 50
-        trend = 'Sideways' if report_language == "en" else '震荡'
-        advice = 'Hold' if report_language == "en" else '持有'
+        trend = localize_trend_prediction('sideways', report_language)
+        advice = localize_operation_advice('hold', report_language)
         
         text_lower = response_text.lower()
         
         # 简单的情绪识别
-        positive_keywords = ['看多', '买入', '上涨', '突破', '强势', '利好', '加仓', 'bullish', 'buy']
-        negative_keywords = ['看空', '卖出', '下跌', '跌破', '弱势', '利空', '减仓', 'bearish', 'sell']
+        positive_keywords = [
+            '看多', '买入', '上涨', '突破', '强势', '利好', '加仓',
+            'bullish', 'buy', 'mua', 'tích cực', 'xu hướng tăng', 'bứt phá',
+        ]
+        negative_keywords = [
+            '看空', '卖出', '下跌', '跌破', '弱势', '利空', '减仓',
+            'bearish', 'sell', 'bán', 'tiêu cực', 'xu hướng giảm', 'thủng',
+        ]
         
         positive_count = sum(1 for kw in positive_keywords if kw in text_lower)
         negative_count = sum(1 for kw in negative_keywords if kw in text_lower)
         
         if positive_count > negative_count + 1:
             sentiment_score = 65
-            trend = 'Bullish' if report_language == "en" else '看多'
-            advice = 'Buy' if report_language == "en" else '买入'
+            trend = localize_trend_prediction('bullish', report_language)
+            advice = localize_operation_advice('buy', report_language)
             decision_type = 'buy'
         elif negative_count > positive_count + 1:
             sentiment_score = 35
-            trend = 'Bearish' if report_language == "en" else '看空'
-            advice = 'Sell' if report_language == "en" else '卖出'
+            trend = localize_trend_prediction('bearish', report_language)
+            advice = localize_operation_advice('sell', report_language)
             decision_type = 'sell'
         else:
             decision_type = 'hold'
         
         # 截取前500字符作为摘要
-        summary = response_text[:500] if response_text else ('No analysis result' if report_language == "en" else '无分析结果')
+        summary = response_text[:500] if response_text else _language_text(
+            report_language,
+            zh='无分析结果',
+            en='No analysis result',
+            vi='Chưa có kết quả phân tích',
+        )
         
         return AnalysisResult(
             code=code,
@@ -2118,10 +2227,20 @@ class GeminiAnalyzer:
             trend_prediction=trend,
             operation_advice=advice,
             decision_type=decision_type,
-            confidence_level='Low' if report_language == "en" else '低',
+            confidence_level=localize_confidence_level('low', report_language),
             analysis_summary=summary,
-            key_points='JSON parsing failed; treat this as best-effort output.' if report_language == "en" else 'JSON解析失败，仅供参考',
-            risk_warning='The result may be inaccurate. Cross-check with other information.' if report_language == "en" else '分析结果可能不准确，建议结合其他信息判断',
+            key_points=_language_text(
+                report_language,
+                zh='JSON解析失败，仅供参考',
+                en='JSON parsing failed; treat this as best-effort output.',
+                vi='Không phân tích được JSON; chỉ nên xem là kết quả tham khảo.',
+            ),
+            risk_warning=_language_text(
+                report_language,
+                zh='分析结果可能不准确，建议结合其他信息判断',
+                en='The result may be inaccurate. Cross-check with other information.',
+                vi='Kết quả có thể không chính xác, nên đối chiếu thêm nguồn khác.',
+            ),
             raw_response=response_text,
             success=False,
             error_message='LLM response is not valid JSON; analysis result will not be persisted',

@@ -1,6 +1,7 @@
 import apiClient from './index';
 import { API_BASE_URL } from '../utils/constants';
 import { createApiError, isApiRequestError, parseApiError } from './error';
+import { localizeSkillInfo } from '../utils/skillI18n';
 
 export interface ChatStreamOptions {
   signal?: AbortSignal;
@@ -58,7 +59,10 @@ export const agentApi = {
   },
   async getSkills(): Promise<SkillsResponse> {
     const response = await apiClient.get<SkillsResponse>('/api/v1/agent/skills');
-    return response.data;
+    return {
+      ...response.data,
+      skills: response.data.skills.map(localizeSkillInfo),
+    };
   },
   async getChatSessions(limit = 50): Promise<ChatSessionItem[]> {
     const response = await apiClient.get<{ sessions: ChatSessionItem[] }>('/api/v1/agent/chat/sessions', { params: { limit } });
@@ -79,7 +83,7 @@ export const agentApi = {
     }>('/api/v1/agent/chat/send', { content });
     const data = response.data;
     if (data.success === false) {
-      throw new Error(data.message || '发送失败');
+      throw new Error(data.message || 'Gửi thất bại');
     }
     return { success: true };
   },

@@ -93,36 +93,36 @@ function getDesktopUpdateNotice(state: DesktopUpdateState | null) {
   }
 
   if (state.status === 'update-available') {
-    const latestLabel = state.latestVersion || state.tagName || '最新版本';
-    const currentLabel = state.currentVersion || getDesktopAppVersion() || '当前版本';
+    const latestLabel = state.latestVersion || state.tagName || 'phiên bản mới nhất';
+    const currentLabel = state.currentVersion || getDesktopAppVersion() || 'phiên bản hiện tại';
     return {
-      title: '发现新版本',
-      message: `当前 ${currentLabel}，最新 ${latestLabel}。${state.message || '可前往 GitHub Releases 下载更新。'}`,
+      title: 'Có phiên bản mới',
+      message: `Hiện tại ${currentLabel}, mới nhất ${latestLabel}. ${state.message || 'Có thể tới GitHub Releases để tải bản cập nhật.'}`,
       variant: 'warning' as const,
-      actionLabel: '前往下载',
+      actionLabel: 'Tới trang tải',
     };
   }
 
   if (state.status === 'up-to-date') {
     return {
-      title: '已是最新版本',
-      message: state.message || '当前桌面端已是最新版本。',
+      title: 'Đã là phiên bản mới nhất',
+      message: state.message || 'Desktop hiện đã là phiên bản mới nhất.',
       variant: 'success' as const,
     };
   }
 
   if (state.status === 'checking') {
     return {
-      title: '正在检查更新',
-      message: state.message || '正在检查 GitHub Releases 中是否有可用新版本。',
+      title: 'Đang kiểm tra cập nhật',
+      message: state.message || 'Đang kiểm tra phiên bản mới trên GitHub Releases.',
       variant: 'warning' as const,
     };
   }
 
   if (state.status === 'error') {
     return {
-      title: '检查更新失败',
-      message: state.message || '无法完成更新检查，请稍后重试。',
+      title: 'Kiểm tra cập nhật thất bại',
+      message: state.message || 'Không thể kiểm tra cập nhật, vui lòng thử lại sau.',
       variant: 'error' as const,
     };
   }
@@ -158,7 +158,7 @@ const SettingsPage: React.FC = () => {
 
   // Set page title
   useEffect(() => {
-    document.title = '系统设置 - DSA';
+    document.title = 'Cài đặt hệ thống - DSA';
   }, []);
 
   const {
@@ -225,7 +225,7 @@ const SettingsPage: React.FC = () => {
         }
         setDesktopUpdateState({
           status: 'error',
-          message: error instanceof Error ? error.message : '读取桌面端更新状态失败。',
+          message: error instanceof Error ? error.message : 'Đọc trạng thái cập nhật desktop thất bại.',
         });
       }
     };
@@ -320,7 +320,7 @@ const SettingsPage: React.FC = () => {
       anchor.click();
       document.body.removeChild(anchor);
       URL.revokeObjectURL(url);
-      setDesktopActionSuccess('已导出当前已保存的 .env 备份。');
+      setDesktopActionSuccess('Đã xuất bản sao lưu .env đã lưu.');
     } catch (error: unknown) {
       setDesktopActionError(getParsedApiError(error));
     } finally {
@@ -359,14 +359,14 @@ const SettingsPage: React.FC = () => {
       const reloaded = await load();
       if (!reloaded) {
         setDesktopActionError(createParsedApiError({
-          title: '配置已导入但刷新失败',
-          message: '备份已导入，但重新加载配置失败，请手动重载页面。',
+          title: 'Đã nhập cấu hình nhưng làm mới thất bại',
+          message: 'Đã nhập bản sao lưu, nhưng tải lại cấu hình thất bại. Vui lòng reload trang thủ công.',
           rawMessage: 'Desktop env import succeeded but config refresh failed',
           category: 'http_error',
         }));
         return;
       }
-      setDesktopActionSuccess('已导入 .env 备份并重新加载配置。');
+      setDesktopActionSuccess('Đã nhập bản sao lưu .env và tải lại cấu hình.');
     } catch (error: unknown) {
       setDesktopActionError(getParsedApiError(error));
     } finally {
@@ -383,7 +383,7 @@ const SettingsPage: React.FC = () => {
     setDesktopUpdateState((current) => ({
       ...(current || {}),
       status: 'checking',
-      message: '正在检查 GitHub Releases 中是否有可用新版本。',
+      message: 'Đang kiểm tra phiên bản mới trên GitHub Releases.',
     }));
 
     try {
@@ -392,7 +392,7 @@ const SettingsPage: React.FC = () => {
     } catch (error: unknown) {
       setDesktopUpdateState({
         status: 'error',
-        message: error instanceof Error ? error.message : '检查更新失败，请稍后重试。',
+        message: error instanceof Error ? error.message : 'Kiểm tra cập nhật thất bại, vui lòng thử lại sau.',
       });
     } finally {
       setIsCheckingDesktopUpdate(false);
@@ -410,13 +410,13 @@ const SettingsPage: React.FC = () => {
   const desktopUpdateNotice = getDesktopUpdateNotice(desktopUpdateState);
 
   return (
-    <div className="settings-page min-h-full px-4 pb-6 pt-4 md:px-6">
+    <div className="settings-page min-h-full min-w-0 px-4 pb-6 pt-4 md:px-6">
       <div className="mb-5 rounded-[1.5rem] border settings-border bg-card/94 px-5 py-5 shadow-soft-card-strong backdrop-blur-sm">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="text-xl font-semibold tracking-tight text-foreground">系统设置</h1>
+            <h1 className="text-xl font-semibold tracking-tight text-foreground">Cài đặt hệ thống</h1>
             <p className="text-xs leading-6 text-muted-text">
-              统一管理模型、数据源、通知、安全认证与导入能力。
+              Quản lý mô hình, nguồn dữ liệu, thông báo, xác thực và import trong một nơi.
             </p>
           </div>
 
@@ -427,7 +427,7 @@ const SettingsPage: React.FC = () => {
               onClick={resetDraft}
               disabled={isLoading || isSaving}
             >
-              重置
+              Đặt lại
             </Button>
             <Button
               type="button"
@@ -435,9 +435,9 @@ const SettingsPage: React.FC = () => {
               onClick={() => void save()}
               disabled={!hasDirty || isSaving || isLoading}
               isLoading={isSaving}
-              loadingText="保存中..."
+              loadingText="Đang lưu..."
             >
-              {isSaving ? '保存中...' : `保存配置${dirtyCount ? ` (${dirtyCount})` : ''}`}
+              {isSaving ? 'Đang lưu...' : `Lưu cấu hình${dirtyCount ? ` (${dirtyCount})` : ''}`}
             </Button>
           </div>
         </div>
@@ -446,7 +446,7 @@ const SettingsPage: React.FC = () => {
           <ApiErrorAlert
             className="mt-3"
             error={saveError}
-            actionLabel={retryAction === 'save' ? '重试保存' : undefined}
+            actionLabel={retryAction === 'save' ? 'Thử lưu lại' : undefined}
             onAction={retryAction === 'save' ? () => void retry() : undefined}
           />
         ) : null}
@@ -455,7 +455,7 @@ const SettingsPage: React.FC = () => {
       {loadError ? (
         <ApiErrorAlert
           error={loadError}
-          actionLabel={retryAction === 'load' ? '重试加载' : '重新加载'}
+          actionLabel={retryAction === 'load' ? 'Thử tải lại' : 'Tải lại'}
           onAction={() => void retry()}
           className="mb-4"
         />
@@ -464,7 +464,7 @@ const SettingsPage: React.FC = () => {
       {isLoading ? (
         <SettingsLoading />
       ) : (
-        <div className="grid grid-cols-1 gap-5 lg:grid-cols-[280px_1fr]">
+        <div className="grid min-w-0 grid-cols-1 gap-5 lg:grid-cols-[280px_1fr]">
           <aside className="lg:sticky lg:top-4 lg:self-start">
             <SettingsCategoryNav
               categories={categories}
@@ -474,19 +474,19 @@ const SettingsPage: React.FC = () => {
             />
           </aside>
 
-          <section className="space-y-4">
+          <section className="min-w-0 space-y-4">
             {activeCategory === 'system' ? <AuthSettingsCard /> : null}
             {activeCategory === 'system' ? (
               <SettingsSectionCard
-                title="版本信息"
-                description="用于确认当前 WebUI 静态资源是否已经切换到最新构建。"
+                title="Thông tin phiên bản"
+                description="Dùng để xác nhận tài nguyên tĩnh WebUI hiện tại đã chuyển sang bản build mới nhất."
               >
                 <div
                   className={`grid grid-cols-1 gap-3 ${shouldShowDesktopVersionCard ? 'md:grid-cols-4' : 'md:grid-cols-3'}`}
                 >
                   <div className="rounded-2xl border settings-border bg-background/40 px-4 py-3">
                     <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-text">
-                      WebUI 版本
+                      Phiên bản WebUI
                     </p>
                     <p className="mt-2 break-all font-mono text-sm text-foreground">
                       {WEB_BUILD_INFO.version}
@@ -494,7 +494,7 @@ const SettingsPage: React.FC = () => {
                   </div>
                   <div className="rounded-2xl border settings-border bg-background/40 px-4 py-3">
                     <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-text">
-                      构建标识
+                      Build ID
                     </p>
                     <p className="mt-2 break-all font-mono text-sm text-foreground">
                       {WEB_BUILD_INFO.buildId}
@@ -502,7 +502,7 @@ const SettingsPage: React.FC = () => {
                   </div>
                   <div className="rounded-2xl border settings-border bg-background/40 px-4 py-3">
                     <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-text">
-                      构建时间
+                      Thời gian build
                     </p>
                     <p className="mt-2 break-all font-mono text-sm text-foreground">
                       {WEB_BUILD_INFO.buildTime}
@@ -511,7 +511,7 @@ const SettingsPage: React.FC = () => {
                   {shouldShowDesktopVersionCard ? (
                     <div className="rounded-2xl border settings-border bg-background/40 px-4 py-3">
                       <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-text">
-                        桌面端版本
+                        Phiên bản desktop
                       </p>
                       <p className="mt-2 break-all font-mono text-sm text-foreground">
                         {desktopAppVersion}
@@ -520,15 +520,15 @@ const SettingsPage: React.FC = () => {
                   ) : null}
                 </div>
                 <p className="text-xs leading-6 text-muted-text">
-                  重新执行前端构建或 Docker 镜像构建后，此处的构建标识和构建时间会更新，可用来确认当前页面资源是否已切换。
+                  Sau khi build lại frontend hoặc Docker image, Build ID và thời gian build sẽ cập nhật để bạn xác nhận tài nguyên hiện tại.
                 </p>
                 {canCheckDesktopUpdate ? (
                   <div className="mt-4 space-y-3 rounded-2xl border settings-border bg-background/30 px-4 py-4">
                     <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                       <div>
-                        <p className="text-sm font-medium text-foreground">桌面端更新</p>
+                        <p className="text-sm font-medium text-foreground">Cập nhật desktop</p>
                         <p className="text-xs leading-6 text-muted-text">
-                          启动后会自动检查 GitHub Releases 最新正式版；发现更新时仅提醒并跳转下载页，不会静默下载或自动安装。
+                          Ứng dụng tự kiểm tra bản phát hành mới trên GitHub Releases; khi có cập nhật chỉ nhắc và mở trang tải, không tự tải/cài đặt.
                         </p>
                       </div>
                       <Button
@@ -537,9 +537,9 @@ const SettingsPage: React.FC = () => {
                         onClick={() => void handleDesktopUpdateCheck()}
                         disabled={isCheckingDesktopUpdate}
                         isLoading={isCheckingDesktopUpdate}
-                        loadingText="检查中..."
+                        loadingText="Đang kiểm tra..."
                       >
-                        检查更新
+                        Kiểm tra cập nhật
                       </Button>
                     </div>
                     {desktopUpdateNotice ? (
@@ -554,22 +554,22 @@ const SettingsPage: React.FC = () => {
                       />
                     ) : (
                       <p className="text-xs leading-6 text-muted-text">
-                        当前尚无更新状态，应用启动后会在后台自动检查。
+                        Hiện chưa có trạng thái cập nhật; ứng dụng sẽ tự kiểm tra nền sau khi khởi động.
                       </p>
                     )}
                   </div>
                 ) : null}
                 {WEB_BUILD_INFO.isFallbackVersion ? (
                   <p className="text-xs leading-6 text-amber-700 dark:text-amber-300">
-                    当前 package.json 仍为占位版本 0.0.0，页面已自动回退展示构建标识，避免误判旧资源仍在生效。
+                    package.json vẫn là phiên bản placeholder 0.0.0, trang đã tự hiển thị Build ID để tránh nhầm với tài nguyên cũ.
                   </p>
                 ) : null}
               </SettingsSectionCard>
             ) : null}
             {activeCategory === 'system' && isDesktopRuntime ? (
               <SettingsSectionCard
-                title="配置备份"
-                description="导出当前已保存的 .env 备份，或从备份文件恢复桌面端配置。导入会覆盖备份中出现的键并立即重载。"
+                title="Sao lưu cấu hình"
+                description="Xuất .env đã lưu hoặc khôi phục cấu hình desktop từ file sao lưu. Import sẽ ghi đè các key có trong file và tải lại ngay."
               >
                 <div className="space-y-4">
                   <div className="flex flex-wrap items-center gap-3">
@@ -579,9 +579,9 @@ const SettingsPage: React.FC = () => {
                       onClick={() => void downloadDesktopEnv()}
                       disabled={desktopActionDisabled}
                       isLoading={isExportingEnv}
-                      loadingText="导出中..."
+                      loadingText="Đang xuất..."
                     >
-                      导出 .env
+                      Xuất .env
                     </Button>
                     <Button
                       type="button"
@@ -589,9 +589,9 @@ const SettingsPage: React.FC = () => {
                       onClick={beginDesktopImport}
                       disabled={desktopActionDisabled}
                       isLoading={isImportingEnv}
-                      loadingText="导入中..."
+                      loadingText="Đang nhập..."
                     >
-                      导入 .env
+                      Nhập .env
                     </Button>
                     <input
                       ref={desktopImportRef}
@@ -604,25 +604,25 @@ const SettingsPage: React.FC = () => {
                     />
                   </div>
                   <p className="text-xs leading-6 text-muted-text">
-                    导出内容仅包含当前已保存配置，不包含页面上尚未保存的本地草稿。
+                    Nội dung xuất chỉ gồm cấu hình đã lưu, không gồm thay đổi nháp chưa lưu trên trang.
                   </p>
                   {desktopActionError ? (
                     <ApiErrorAlert
                       error={desktopActionError}
-                      actionLabel={desktopActionError.status === 409 ? '重新加载' : undefined}
+                      actionLabel={desktopActionError.status === 409 ? 'Tải lại' : undefined}
                       onAction={desktopActionError.status === 409 ? () => void load() : undefined}
                     />
                   ) : null}
                   {!desktopActionError && desktopActionSuccess ? (
-                    <SettingsAlert title="操作成功" message={desktopActionSuccess} variant="success" />
+                    <SettingsAlert title="Thao tác thành công" message={desktopActionSuccess} variant="success" />
                   ) : null}
                 </div>
               </SettingsSectionCard>
             ) : null}
             {activeCategory === 'base' ? (
               <SettingsSectionCard
-                title="智能导入"
-                description="从图片、文件或剪贴板中提取股票代码，并合并到自选股列表。"
+                title="Import thông minh"
+                description="Trích xuất mã cổ phiếu từ ảnh, file hoặc clipboard và hợp nhất vào danh sách theo dõi."
               >
                 <IntelligentImport
                   stockListValue={
@@ -639,8 +639,8 @@ const SettingsPage: React.FC = () => {
             ) : null}
             {activeCategory === 'ai_model' ? (
               <SettingsSectionCard
-                title="AI 模型接入"
-                description="统一管理模型渠道、基础地址、API Key、主模型与备选模型。"
+                title="Kết nối mô hình AI"
+                description="Quản lý kênh mô hình, base URL, API Key, mô hình chính và mô hình dự phòng."
               >
                 <LLMChannelEditor
                   items={rawActiveItems}
@@ -658,8 +658,8 @@ const SettingsPage: React.FC = () => {
             ) : null}
             {activeItems.length ? (
               <SettingsSectionCard
-                title="当前分类配置项"
-                description={getCategoryDescriptionZh(activeCategory as SystemConfigCategory, '') || '使用统一字段卡片维护当前分类的系统配置。'}
+                title="Cấu hình trong nhóm hiện tại"
+                description={getCategoryDescriptionZh(activeCategory as SystemConfigCategory, '') || 'Dùng thẻ trường thống nhất để chỉnh cấu hình của nhóm hiện tại.'}
               >
                 {activeItems.map((item) => (
                   <SettingsField
@@ -674,8 +674,8 @@ const SettingsPage: React.FC = () => {
               </SettingsSectionCard>
             ) : (
               <EmptyState
-                title="当前分类下暂无配置项"
-                description="当前分类没有可编辑字段；可切换左侧分类继续查看其它系统配置。"
+                title="Nhóm hiện tại chưa có cấu hình"
+                description="Nhóm này không có trường chỉnh sửa; hãy chuyển nhóm bên trái để xem cấu hình khác."
                 className="settings-surface-panel settings-border-strong border-none bg-transparent shadow-none"
               />
             )}
@@ -686,16 +686,16 @@ const SettingsPage: React.FC = () => {
       {toast ? (
         <div className="fixed bottom-5 right-5 z-50 w-[320px] max-w-[calc(100vw-24px)]">
           {toast.type === 'success'
-            ? <SettingsAlert title="操作成功" message={toast.message} variant="success" />
+            ? <SettingsAlert title="Thao tác thành công" message={toast.message} variant="success" />
             : <ApiErrorAlert error={toast.error} />}
         </div>
       ) : null}
       <ConfirmDialog
         isOpen={showImportConfirm}
-        title="导入会覆盖当前草稿"
-        message="当前页面还有未保存修改。继续导入会丢弃这些本地草稿，并立即用备份文件中的键值更新已保存配置。"
-        confirmText="继续导入"
-        cancelText="取消"
+        title="Import sẽ ghi đè bản nháp"
+        message="Trang hiện có thay đổi chưa lưu. Tiếp tục import sẽ bỏ các bản nháp này và cập nhật cấu hình đã lưu bằng file sao lưu."
+        confirmText="Tiếp tục import"
+        cancelText="Hủy"
         onConfirm={() => {
           setShowImportConfirm(false);
           desktopImportRef.current?.click();

@@ -27,11 +27,11 @@ function outcomeBadge(outcome?: string) {
   if (!outcome) return <Badge variant="default">--</Badge>;
   switch (outcome) {
     case 'win':
-      return <Badge variant="success" glow>WIN</Badge>;
+      return <Badge variant="success" glow>THẮNG</Badge>;
     case 'loss':
-      return <Badge variant="danger" glow>LOSS</Badge>;
+      return <Badge variant="danger" glow>THUA</Badge>;
     case 'neutral':
-      return <Badge variant="warning">NEUTRAL</Badge>;
+      return <Badge variant="warning">TRUNG TÍNH</Badge>;
     default:
       return <Badge variant="default">{outcome}</Badge>;
   }
@@ -40,12 +40,12 @@ function outcomeBadge(outcome?: string) {
 function statusBadge(status: string) {
   switch (status) {
     case 'completed':
-      return <Badge variant="success">completed</Badge>;
+      return <Badge variant="success">hoàn tất</Badge>;
     case 'insufficient':
     case 'insufficient_data':
-      return <Badge variant="warning">insufficient</Badge>;
+      return <Badge variant="warning">thiếu dữ liệu</Badge>;
     case 'error':
-      return <Badge variant="danger">error</Badge>;
+      return <Badge variant="danger">lỗi</Badge>;
     default:
       return <Badge variant="default">{status}</Badge>;
   }
@@ -54,11 +54,11 @@ function statusBadge(status: string) {
 function actualMovementBadge(movement?: string | null) {
   switch (movement) {
     case 'up':
-      return <Badge variant="success">UP</Badge>;
+      return <Badge variant="success">TĂNG</Badge>;
     case 'down':
-      return <Badge variant="danger">DOWN</Badge>;
+      return <Badge variant="danger">GIẢM</Badge>;
     case 'flat':
-      return <Badge variant="warning">FLAT</Badge>;
+      return <Badge variant="warning">ĐI NGANG</Badge>;
     default:
       return <Badge variant="default">--</Badge>;
   }
@@ -116,21 +116,21 @@ const PerformanceCard: React.FC<{ metrics: PerformanceMetrics; title: string }> 
     <div className="mb-3">
       <span className="label-uppercase">{title}</span>
     </div>
-    <MetricRow label="Direction Accuracy" value={pct(metrics.directionAccuracyPct)} accent />
-    <MetricRow label="Win Rate" value={pct(metrics.winRatePct)} accent />
-    <MetricRow label="Avg Sim. Return" value={pct(metrics.avgSimulatedReturnPct)} />
-    <MetricRow label="Avg Stock Return" value={pct(metrics.avgStockReturnPct)} />
-    <MetricRow label="SL Trigger Rate" value={pct(metrics.stopLossTriggerRate)} />
-    <MetricRow label="TP Trigger Rate" value={pct(metrics.takeProfitTriggerRate)} />
-    <MetricRow label="Avg Days to Hit" value={metrics.avgDaysToFirstHit != null ? metrics.avgDaysToFirstHit.toFixed(1) : '--'} />
+    <MetricRow label="Độ chính xác hướng" value={pct(metrics.directionAccuracyPct)} accent />
+    <MetricRow label="Tỷ lệ thắng" value={pct(metrics.winRatePct)} accent />
+    <MetricRow label="Lợi suất mô phỏng TB" value={pct(metrics.avgSimulatedReturnPct)} />
+    <MetricRow label="Lợi suất cổ phiếu TB" value={pct(metrics.avgStockReturnPct)} />
+    <MetricRow label="Tỷ lệ chạm SL" value={pct(metrics.stopLossTriggerRate)} />
+    <MetricRow label="Tỷ lệ chạm TP" value={pct(metrics.takeProfitTriggerRate)} />
+    <MetricRow label="Số ngày TB tới mốc" value={metrics.avgDaysToFirstHit != null ? metrics.avgDaysToFirstHit.toFixed(1) : '--'} />
     <div className="backtest-metric-footer">
-      <span className="text-xs text-muted-text">Evaluations</span>
+      <span className="text-xs text-muted-text">Lượt đánh giá</span>
       <span className="text-xs text-secondary-text font-mono">
         {Number(metrics.completedCount)} / {Number(metrics.totalEvaluations)}
       </span>
     </div>
     <div className="flex items-center justify-between">
-      <span className="text-xs text-muted-text">W / L / N</span>
+      <span className="text-xs text-muted-text">Thắng / Thua / Hòa</span>
       <span className="text-xs font-mono">
         <span className="text-success">{metrics.winCount}</span>
         {' / '}
@@ -146,12 +146,12 @@ const PerformanceCard: React.FC<{ metrics: PerformanceMetrics; title: string }> 
 
 const RunSummary: React.FC<{ data: BacktestRunResponse }> = ({ data }) => (
   <div className="backtest-summary animate-fade-in">
-    <span className="label">Processed: <span className="value">{data.processed}</span></span>
-    <span className="label">Saved: <span className="value primary">{data.saved}</span></span>
-    <span className="label">Completed: <span className="value success">{data.completed}</span></span>
-    <span className="label">Insufficient: <span className="value warning">{data.insufficient}</span></span>
+    <span className="label">Đã xử lý: <span className="value">{data.processed}</span></span>
+    <span className="label">Đã lưu: <span className="value primary">{data.saved}</span></span>
+    <span className="label">Hoàn tất: <span className="value success">{data.completed}</span></span>
+    <span className="label">Thiếu dữ liệu: <span className="value warning">{data.insufficient}</span></span>
     {data.errors > 0 && (
-      <span className="label">Errors: <span className="value danger">{data.errors}</span></span>
+      <span className="label">Lỗi: <span className="value danger">{data.errors}</span></span>
     )}
   </div>
 );
@@ -161,7 +161,7 @@ const RunSummary: React.FC<{ data: BacktestRunResponse }> = ({ data }) => (
 const BacktestPage: React.FC = () => {
   // Set page title
   useEffect(() => {
-    document.title = '策略回测 - DSA';
+    document.title = 'Backtest chiến lược - DSA';
   }, []);
 
   // Input state
@@ -337,7 +337,7 @@ const BacktestPage: React.FC = () => {
               value={codeFilter}
               onChange={(e) => setCodeFilter(e.target.value.toUpperCase())}
               onKeyDown={handleKeyDown}
-              placeholder="Filter by stock code (leave empty for all)"
+              placeholder="Lọc theo mã cổ phiếu (để trống = tất cả)"
               disabled={isRunning}
               className={BACKTEST_INPUT_CLASS}
             />
@@ -348,10 +348,10 @@ const BacktestPage: React.FC = () => {
             disabled={isLoadingResults}
             className="btn-secondary flex items-center gap-1.5 whitespace-nowrap"
           >
-            Filter
+            Lọc
           </button>
           <div className="flex items-center gap-2 whitespace-nowrap lg:w-40 lg:justify-between">
-            <span className="text-xs text-muted-text">Window</span>
+            <span className="text-xs text-muted-text">Cửa sổ</span>
             <input
               type="number"
               min={1}
@@ -364,10 +364,10 @@ const BacktestPage: React.FC = () => {
             />
           </div>
           <div className="flex items-center gap-2 whitespace-nowrap">
-            <span className="text-xs text-muted-text">From</span>
+            <span className="text-xs text-muted-text">Từ</span>
             <input
               type="date"
-              aria-label="Analysis date from"
+              aria-label="Ngày phân tích từ"
               value={analysisDateFrom}
               onChange={(e) => setAnalysisDateFrom(e.target.value)}
               onKeyDown={handleKeyDown}
@@ -376,10 +376,10 @@ const BacktestPage: React.FC = () => {
             />
           </div>
           <div className="flex items-center gap-2 whitespace-nowrap">
-            <span className="text-xs text-muted-text">To</span>
+            <span className="text-xs text-muted-text">Đến</span>
             <input
               type="date"
-              aria-label="Analysis date to"
+              aria-label="Ngày phân tích đến"
               value={analysisDateTo}
               onChange={(e) => setAnalysisDateTo(e.target.value)}
               onKeyDown={handleKeyDown}
@@ -394,7 +394,7 @@ const BacktestPage: React.FC = () => {
             className={`backtest-force-btn ${isNextDayValidation ? 'active' : ''}`}
           >
             <span className="dot" />
-            1D Validation
+            Kiểm chứng T+1
           </button>
           <button
             type="button"
@@ -403,7 +403,7 @@ const BacktestPage: React.FC = () => {
             className={`backtest-force-btn ${forceRerun ? 'active' : ''}`}
           >
             <span className="dot" />
-            Force
+            Chạy lại
           </button>
           <button
             type="button"
@@ -417,10 +417,10 @@ const BacktestPage: React.FC = () => {
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                 </svg>
-                Running...
+                Đang chạy...
               </>
             ) : (
-              'Run Backtest'
+              'Chạy backtest'
             )}
           </button>
         </div>
@@ -434,8 +434,8 @@ const BacktestPage: React.FC = () => {
         )}
         <p className="mt-2 text-xs text-muted-text">
           {isNextDayValidation
-            ? 'Next-day validation mode compares AI predictions with the next trading day close.'
-            : 'Use window = 1 to review AI predictions against the next trading day close.'}
+            ? 'Chế độ kiểm chứng T+1 so sánh dự báo AI với giá đóng cửa ngày giao dịch kế tiếp.'
+            : 'Đặt cửa sổ = 1 để kiểm tra dự báo AI theo giá đóng cửa ngày giao dịch kế tiếp.'}
         </p>
       </header>
 
@@ -448,11 +448,11 @@ const BacktestPage: React.FC = () => {
               <div className="backtest-spinner sm" />
             </div>
           ) : overallPerf ? (
-            <PerformanceCard metrics={overallPerf} title="Overall Performance" />
+            <PerformanceCard metrics={overallPerf} title="Hiệu suất tổng thể" />
           ) : (
             <EmptyState
-              title="No Metrics Yet"
-              description="Run a backtest to generate portfolio-level performance metrics."
+              title="Chưa có chỉ số"
+              description="Chạy backtest để tạo chỉ số hiệu suất cấp danh mục."
               className="h-full min-h-[12rem] border-dashed bg-card/45 shadow-none"
             />
           )}
@@ -470,12 +470,12 @@ const BacktestPage: React.FC = () => {
           {isLoadingResults ? (
             <div className="flex flex-col items-center justify-center h-64">
               <div className="backtest-spinner md" />
-              <p className="mt-3 text-secondary-text text-sm">Loading results...</p>
+              <p className="mt-3 text-secondary-text text-sm">Đang tải kết quả...</p>
             </div>
           ) : results.length === 0 ? (
             <EmptyState
-              title="No Results"
-              description="Run a backtest to evaluate historical analysis accuracy"
+              title="Chưa có kết quả"
+              description="Chạy backtest để đánh giá độ chính xác của phân tích lịch sử"
               className="backtest-empty-state border-dashed"
               icon={(
                 <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -487,31 +487,31 @@ const BacktestPage: React.FC = () => {
             <div className="animate-fade-in">
               <div className="backtest-table-toolbar">
                 <div className="backtest-table-toolbar-meta">
-                  <span className="label-uppercase">{isNextDayValidation ? 'Next-Day Validation' : 'Result Set'}</span>
+                  <span className="label-uppercase">{isNextDayValidation ? 'Kiểm chứng T+1' : 'Bộ kết quả'}</span>
                   <span className="text-xs text-secondary-text">
-                    {codeFilter.trim() ? `Filtered by ${codeFilter.trim()}` : 'All stocks'}
-                    {evalDays ? ` · ${evalDays} day window` : ''}
-                    {analysisDateFrom ? ` · from ${analysisDateFrom}` : ''}
-                    {analysisDateTo ? ` · to ${analysisDateTo}` : ''}
+                    {codeFilter.trim() ? `Lọc theo ${codeFilter.trim()}` : 'Tất cả cổ phiếu'}
+                    {evalDays ? ` · cửa sổ ${evalDays} ngày` : ''}
+                    {analysisDateFrom ? ` · từ ${analysisDateFrom}` : ''}
+                    {analysisDateTo ? ` · đến ${analysisDateTo}` : ''}
                   </span>
                 </div>
-                <span className="backtest-table-scroll-hint">Scroll horizontally on small screens</span>
+                <span className="backtest-table-scroll-hint">Vuốt ngang trên màn hình nhỏ</span>
               </div>
               <div className="backtest-table-wrapper">
                 <table className="backtest-table min-w-[840px] w-full text-sm">
                   <thead className="backtest-table-head">
                     <tr className="text-left">
-                      <th className="backtest-table-head-cell">Stock</th>
-                      <th className="backtest-table-head-cell">Analysis Date</th>
-                      <th className="backtest-table-head-cell">AI Prediction</th>
+                      <th className="backtest-table-head-cell">Cổ phiếu</th>
+                      <th className="backtest-table-head-cell">Ngày phân tích</th>
+                      <th className="backtest-table-head-cell">Dự báo AI</th>
                       <th className="backtest-table-head-cell">
-                        {showNextDayActualColumns ? 'Actual' : 'Window Return'}
+                        {showNextDayActualColumns ? 'Thực tế' : 'Lợi suất cửa sổ'}
                       </th>
                       <th className="backtest-table-head-cell">
-                        {showNextDayActualColumns ? 'Accuracy' : 'Direction Match'}
+                        {showNextDayActualColumns ? 'Độ chính xác' : 'Khớp hướng'}
                       </th>
-                      <th className="backtest-table-head-cell">Outcome</th>
-                      <th className="backtest-table-head-cell">Status</th>
+                      <th className="backtest-table-head-cell">Kết quả</th>
+                      <th className="backtest-table-head-cell">Trạng thái</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -578,7 +578,7 @@ const BacktestPage: React.FC = () => {
               </div>
 
               <p className="text-xs text-muted-text text-center mt-2">
-                {totalResults} result{totalResults !== 1 ? 's' : ''} total · page {currentPage} of {Math.max(totalPages, 1)}
+                Tổng {totalResults} kết quả · trang {currentPage} / {Math.max(totalPages, 1)}
               </p>
             </div>
           )}

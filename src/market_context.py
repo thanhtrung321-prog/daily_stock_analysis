@@ -49,14 +49,17 @@ _MARKET_ROLES = {
     "cn": {
         "zh": " A 股",
         "en": "China A-shares",
+        "vi": "cổ phiếu A-share Trung Quốc",
     },
     "hk": {
         "zh": "港股",
         "en": "Hong Kong stock",
+        "vi": "cổ phiếu Hồng Kông",
     },
     "us": {
         "zh": "美股",
         "en": "US stock",
+        "vi": "cổ phiếu Mỹ",
     },
 }
 
@@ -70,6 +73,10 @@ _MARKET_GUIDELINES = {
             "- This analysis covers a **China A-share** (listed on Shanghai/Shenzhen exchanges).\n"
             "- Consider A-share-specific rules: daily price limits (±10%/±20%/±30%), T+1 settlement, and PRC policy factors."
         ),
+        "vi": (
+            "- Phân tích này dành cho **cổ phiếu A-share Trung Quốc** niêm yết tại Thượng Hải/Thâm Quyến.\n"
+            "- Cần xét các đặc thù A-share: biên độ tăng/giảm ngày (±10%/±20%/±30%), cơ chế T+1 và yếu tố chính sách Trung Quốc."
+        ),
     },
     "hk": {
         "zh": (
@@ -79,6 +86,10 @@ _MARKET_GUIDELINES = {
         "en": (
             "- This analysis covers a **Hong Kong stock** (listed on HKEX).\n"
             "- HK stocks have no daily price limits, allow T+0 trading. Consider HKD FX, Southbound/Northbound flows, and HKEX-specific rules."
+        ),
+        "vi": (
+            "- Phân tích này dành cho **cổ phiếu Hồng Kông** niêm yết trên HKEX.\n"
+            "- Cổ phiếu Hồng Kông không có biên độ giá ngày, hỗ trợ T+0; cần chú ý tỷ giá HKD, dòng vốn Bắc/Nam và quy định HKEX."
         ),
     },
     "us": {
@@ -90,6 +101,10 @@ _MARKET_GUIDELINES = {
             "- This analysis covers a **US stock** (listed on NYSE/NASDAQ).\n"
             "- US stocks have no daily price limits (but have circuit breakers), allow T+0 and pre/after-market trading. Consider USD FX, Fed policy, and SEC regulations."
         ),
+        "vi": (
+            "- Phân tích này dành cho **cổ phiếu Mỹ** niêm yết trên NYSE/NASDAQ.\n"
+            "- Cổ phiếu Mỹ không có biên độ giá ngày nhưng có cơ chế ngắt mạch; hỗ trợ T+0 và giao dịch tiền/hậu thị trường. Cần chú ý USD, Fed và SEC."
+        ),
     },
 }
 
@@ -99,13 +114,13 @@ def get_market_role(stock_code: Optional[str], lang: str = "zh") -> str:
 
     Args:
         stock_code: The stock code being analyzed.
-        lang: 'zh' or 'en'.
+        lang: 'zh', 'en', or 'vi'.
 
     Returns:
         Role string like 'A 股投资分析' or 'US stock investment analysis'.
     """
     market = detect_market(stock_code)
-    lang_key = "en" if lang == "en" else "zh"
+    lang_key = lang if lang in {"zh", "en", "vi"} else "zh"
     return _MARKET_ROLES.get(market, _MARKET_ROLES["cn"])[lang_key]
 
 
@@ -114,11 +129,11 @@ def get_market_guidelines(stock_code: Optional[str], lang: str = "zh") -> str:
 
     Args:
         stock_code: The stock code being analyzed.
-        lang: 'zh' or 'en'.
+        lang: 'zh', 'en', or 'vi'.
 
     Returns:
         Multi-line string with market-specific guidelines.
     """
     market = detect_market(stock_code)
-    lang_key = "en" if lang == "en" else "zh"
+    lang_key = lang if lang in {"zh", "en", "vi"} else "zh"
     return _MARKET_GUIDELINES.get(market, _MARKET_GUIDELINES["cn"])[lang_key]

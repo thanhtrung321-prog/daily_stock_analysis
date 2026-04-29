@@ -17,21 +17,22 @@ interface HistoryListItemProps {
 const getOperationBadgeLabel = (advice?: string) => {
   const normalized = advice?.trim();
   if (!normalized) {
-    return '情绪';
+    return 'Tâm lý';
   }
-  if (normalized.includes('减仓')) {
-    return '减仓';
+  const lower = normalized.toLowerCase();
+  if (normalized.includes('减仓') || lower.includes('reduce') || lower.includes('giảm')) {
+    return 'Giảm';
   }
-  if (normalized.includes('卖')) {
-    return '卖出';
+  if (normalized.includes('卖') || lower.includes('sell') || lower.includes('bán')) {
+    return 'Bán';
   }
-  if (normalized.includes('观望') || normalized.includes('等待')) {
-    return '观望';
+  if (normalized.includes('观望') || normalized.includes('等待') || lower.includes('watch') || lower.includes('quan sát') || lower.includes('chờ')) {
+    return 'Quan sát';
   }
-  if (normalized.includes('买') || normalized.includes('布局')) {
-    return '买入';
+  if (normalized.includes('买') || normalized.includes('布局') || lower.includes('buy') || lower.includes('mua')) {
+    return 'Mua';
   }
-  return normalized.split(/[，。；、\s]/)[0] || '建议';
+  return normalized.split(/[，。；、\s]/)[0] || 'Khuyến nghị';
 };
 
 export const HistoryListItem: React.FC<HistoryListItemProps> = ({

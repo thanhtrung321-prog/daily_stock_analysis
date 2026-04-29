@@ -45,6 +45,14 @@ class ReportLanguageTestCase(unittest.TestCase):
         self.assertEqual(get_bias_status_emoji("Safe"), "✅")
         self.assertEqual(get_bias_status_emoji("Caution"), "⚠️")
 
+    def test_vietnamese_signal_and_sentiment_labels(self) -> None:
+        signal_text, emoji, signal_tag = get_signal_level("mua", 70, "vi")
+
+        self.assertEqual(signal_text, "Mua")
+        self.assertEqual(emoji, "🟢")
+        self.assertEqual(signal_tag, "buy")
+        self.assertEqual(get_sentiment_label(80, "vi"), "Rất tích cực")
+
 
 if __name__ == "__main__":
     unittest.main()

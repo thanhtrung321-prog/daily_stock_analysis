@@ -19,7 +19,7 @@ export const JsonViewer: React.FC<JsonViewerProps> = ({
 
   if (!data) {
     return (
-      <div className="text-gray-500 italic py-4 text-center">暂无数据</div>
+      <div className="text-gray-500 italic py-4 text-center">Chưa có dữ liệu</div>
     );
   }
 
@@ -74,7 +74,7 @@ export const JsonViewer: React.FC<JsonViewerProps> = ({
           bg-slate-700 hover:bg-slate-600 text-gray-300
           transition-colors z-10"
       >
-        {copied ? '已复制!' : '复制'}
+        {copied ? 'Đã sao chép!' : 'Sao chép'}
       </button>
 
       {/* JSON 内容 */}

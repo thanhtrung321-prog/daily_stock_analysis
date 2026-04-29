@@ -33,13 +33,13 @@ export const Shell: React.FC<ShellProps> = ({ children }) => {
   }, [mobileOpen]);
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="h-screen overflow-hidden bg-background text-foreground">
       <div className="pointer-events-none fixed inset-x-0 top-3 z-40 flex items-start justify-between px-3 lg:hidden">
         <button
           type="button"
           onClick={() => setMobileOpen(true)}
           className="pointer-events-auto inline-flex h-10 w-10 items-center justify-center rounded-xl border border-border/70 bg-card/85 text-secondary-text shadow-soft-card backdrop-blur-md transition-colors hover:bg-hover hover:text-foreground"
-          aria-label="打开导航菜单"
+          aria-label="Mở menu điều hướng"
         >
           <Menu className="h-5 w-5" />
         </button>
@@ -48,19 +48,18 @@ export const Shell: React.FC<ShellProps> = ({ children }) => {
         </div>
       </div>
 
-      <div className="mx-auto flex min-h-screen w-full max-w-[1680px] px-3 py-3 sm:px-4 sm:py-4 lg:px-5">
+      <div className="grid h-screen w-full min-w-0 grid-cols-1 overflow-hidden px-3 py-3 sm:px-4 sm:py-4 lg:grid-cols-[12rem_minmax(0,1fr)] lg:gap-4 lg:px-5">
         <aside
           className={cn(
-            'sticky top-3 z-40 hidden shrink-0 overflow-visible rounded-[1.5rem] border border-[var(--shell-sidebar-border)] bg-card/72 p-2 shadow-soft-card backdrop-blur-sm transition-[width] duration-200 lg:flex',
-            'max-h-[calc(100vh-1.5rem)] self-start sm:top-4 sm:max-h-[calc(100vh-2rem)]',
-            collapsed ? 'w-[64px]' : 'w-[116px]'
+            'shell-sidebar z-40 hidden h-full min-h-0 w-full shrink-0 overflow-hidden rounded-[1.5rem] border border-[var(--shell-sidebar-border)] bg-card/72 p-2 shadow-soft-card backdrop-blur-sm lg:flex',
+            collapsed ? 'max-w-[64px]' : ''
           )}
-          aria-label="桌面侧边导航"
+          aria-label="Điều hướng bên desktop"
         >
           <SidebarNav collapsed={collapsed} onNavigate={() => setMobileOpen(false)} />
         </aside>
 
-        <main className="min-h-0 min-w-0 flex-1 pt-14 lg:pl-3 lg:pt-0 touch-pan-y">
+        <main className="min-h-0 min-w-0 overflow-x-hidden overflow-y-auto pt-14 touch-pan-y lg:pt-0">
           {children ?? <Outlet />}
         </main>
       </div>
@@ -68,7 +67,7 @@ export const Shell: React.FC<ShellProps> = ({ children }) => {
       <Drawer
         isOpen={mobileOpen}
         onClose={() => setMobileOpen(false)}
-        title="导航菜单"
+        title="Menu điều hướng"
         width="max-w-xs"
         zIndex={90}
         side="left"

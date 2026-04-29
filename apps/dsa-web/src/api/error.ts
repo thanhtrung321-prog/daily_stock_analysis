@@ -298,13 +298,13 @@ export function parseApiError(error: unknown): ParsedApiError {
   const causeMessage = getCauseMessage(error);
   const code = getErrorCode(error);
   const rawMessage = pickString(payloadText, response?.statusText, errorMessage, causeMessage, code)
-    ?? '请求未成功完成，请稍后重试。';
+    ?? 'Yêu cầu chưa hoàn tất thành công, vui lòng thử lại sau.';
   const matchText = buildMatchText([rawMessage, errorMessage, causeMessage, code, errorCode, response?.statusText]);
 
   if (includesAny(matchText, ['agent mode is not enabled', 'agent_mode'])) {
     return createParsedApiError({
-      title: 'Agent 模式未开启',
-      message: '当前功能依赖 Agent 模式，请先开启后再重试。',
+      title: 'Chưa bật chế độ Agent',
+      message: 'Chức năng này cần chế độ Agent. Vui lòng bật rồi thử lại.',
       rawMessage,
       status,
       category: 'agent_disabled',
@@ -315,8 +315,8 @@ export function parseApiError(error: unknown): ParsedApiError {
   const hasMissingParamText = includesAny(matchText, ['必须提供 stock_code 或 stock_codes', 'missing', 'required']);
   if (hasStockCodeField && hasMissingParamText) {
     return createParsedApiError({
-      title: '请求缺少必要参数',
-      message: '请先补充股票代码或必要输入后再试。',
+      title: 'Yêu cầu thiếu tham số bắt buộc',
+      message: 'Vui lòng bổ sung mã cổ phiếu hoặc dữ liệu bắt buộc rồi thử lại.',
       rawMessage,
       status,
       category: 'missing_params',
@@ -325,8 +325,8 @@ export function parseApiError(error: unknown): ParsedApiError {
 
   if (errorCode === 'portfolio_oversell' || includesAny(matchText, ['oversell detected'])) {
     return createParsedApiError({
-      title: '卖出数量超过可用持仓',
-      message: '卖出数量超过当前可用持仓，请删除或修正对应卖出流水后重试。',
+      title: 'Số lượng bán vượt quá vị thế khả dụng',
+      message: 'Số lượng bán vượt quá vị thế hiện có. Hãy xóa hoặc sửa giao dịch bán tương ứng rồi thử lại.',
       rawMessage,
       status,
       category: 'portfolio_oversell',
@@ -335,8 +335,8 @@ export function parseApiError(error: unknown): ParsedApiError {
 
   if (errorCode === 'portfolio_busy' || includesAny(matchText, ['portfolio ledger is busy'])) {
     return createParsedApiError({
-      title: '持仓账本正忙',
-      message: '持仓账本正在处理另一笔变更，请稍后重试。',
+      title: 'Sổ danh mục đang bận',
+      message: 'Sổ danh mục đang xử lý một thay đổi khác, vui lòng thử lại sau.',
       rawMessage,
       status,
       category: 'portfolio_busy',
@@ -353,8 +353,8 @@ export function parseApiError(error: unknown): ParsedApiError {
   ]);
   if (noConfiguredLlm) {
     return createParsedApiError({
-      title: '系统没有配置可用的 LLM 模型',
-      message: '请先在系统设置中配置主模型、可用渠道或相关 API Key 后再重试。',
+      title: 'Hệ thống chưa có mô hình LLM khả dụng',
+      message: 'Vui lòng cấu hình mô hình chính, kênh khả dụng hoặc API Key liên quan trong cài đặt hệ thống rồi thử lại.',
       rawMessage,
       status,
       category: 'llm_not_configured',
@@ -369,8 +369,8 @@ export function parseApiError(error: unknown): ParsedApiError {
     'reasoning',
   ])) {
     return createParsedApiError({
-      title: '当前模型不兼容工具调用',
-      message: '当前模型不适合 Agent / 工具调用场景，请更换支持工具调用的模型后重试。',
+      title: 'Mô hình hiện tại không tương thích tool call',
+      message: 'Mô hình hiện tại không phù hợp với Agent / tool call. Hãy đổi sang mô hình hỗ trợ tool call rồi thử lại.',
       rawMessage,
       status,
       category: 'model_tool_incompatible',
@@ -385,8 +385,8 @@ export function parseApiError(error: unknown): ParsedApiError {
     'invalid function call',
   ])) {
     return createParsedApiError({
-      title: '上游模型返回的数据结构不完整',
-      message: '上游模型返回的工具调用结构不符合要求，请更换模型或关闭相关推理模式后重试。',
+      title: 'Cấu trúc dữ liệu từ mô hình upstream không đầy đủ',
+      message: 'Cấu trúc tool call từ mô hình upstream không đúng yêu cầu. Hãy đổi mô hình hoặc tắt chế độ suy luận liên quan rồi thử lại.',
       rawMessage,
       status,
       category: 'invalid_tool_call',
@@ -395,8 +395,8 @@ export function parseApiError(error: unknown): ParsedApiError {
 
   if (includesAny(matchText, ['timeout', 'timed out', 'read timeout', 'connect timeout']) || code === 'ECONNABORTED') {
     return createParsedApiError({
-      title: '连接上游服务超时',
-      message: '服务端访问外部依赖时超时，请稍后重试，或检查当前网络与代理设置。',
+      title: 'Kết nối dịch vụ upstream quá thời gian',
+      message: 'Server bị timeout khi truy cập phụ thuộc bên ngoài. Vui lòng thử lại sau hoặc kiểm tra mạng/proxy hiện tại.',
       rawMessage,
       status,
       category: 'upstream_timeout',
@@ -418,8 +418,8 @@ export function parseApiError(error: unknown): ParsedApiError {
     ])
   ) {
     return createParsedApiError({
-      title: '服务端无法访问外部依赖',
-      message: '页面已连接到本地服务，但本地服务访问外部模型或数据接口失败，请检查代理、DNS 或出网配置。',
+      title: 'Server không truy cập được phụ thuộc bên ngoài',
+      message: 'Trang đã kết nối tới dịch vụ local, nhưng dịch vụ local không truy cập được mô hình hoặc API dữ liệu bên ngoài. Hãy kiểm tra proxy, DNS hoặc cấu hình mạng ra ngoài.',
       rawMessage,
       status,
       category: 'upstream_network',
@@ -434,8 +434,8 @@ export function parseApiError(error: unknown): ParsedApiError {
   ]);
   if (status === 400 && hasLlmProviderHint) {
     return createParsedApiError({
-      title: '上游模型接口拒绝了当前请求',
-      message: '本地服务正常，但上游模型接口拒绝了请求，请检查模型名称、参数格式或工具调用兼容性。',
+      title: 'API mô hình upstream từ chối yêu cầu',
+      message: 'Dịch vụ local hoạt động bình thường, nhưng API mô hình upstream đã từ chối yêu cầu. Hãy kiểm tra tên mô hình, định dạng tham số hoặc khả năng tương thích tool call.',
       rawMessage,
       status,
       category: 'upstream_llm_400',
@@ -449,8 +449,8 @@ export function parseApiError(error: unknown): ParsedApiError {
   );
   if (localConnectionFailed) {
     return createParsedApiError({
-      title: '无法连接到本地服务',
-      message: '浏览器当前无法连接到本地 Web 服务，请检查服务是否启动、监听地址是否正确、端口是否开放。',
+      title: 'Không thể kết nối dịch vụ local',
+      message: 'Trình duyệt hiện không kết nối được tới Web service local. Hãy kiểm tra dịch vụ đã chạy chưa, địa chỉ lắng nghe có đúng không và cổng đã mở chưa.',
       rawMessage,
       status,
       category: 'local_connection_failed',
@@ -459,8 +459,8 @@ export function parseApiError(error: unknown): ParsedApiError {
 
   if (payloadText || status) {
     return createParsedApiError({
-      title: '请求失败',
-      message: payloadText ?? `请求未成功完成（HTTP ${status}）。`,
+      title: 'Yêu cầu thất bại',
+      message: payloadText ?? `Yêu cầu chưa hoàn tất thành công (HTTP ${status}).`,
       rawMessage,
       status,
       category: 'http_error',
@@ -468,7 +468,7 @@ export function parseApiError(error: unknown): ParsedApiError {
   }
 
   return createParsedApiError({
-    title: '请求失败',
+    title: 'Yêu cầu thất bại',
     message: rawMessage,
     rawMessage,
     status,
@@ -476,7 +476,7 @@ export function parseApiError(error: unknown): ParsedApiError {
   });
 }
 
-export function toApiErrorMessage(error: unknown, fallback = '请求未成功完成，请稍后重试。'): string {
+export function toApiErrorMessage(error: unknown, fallback = 'Yêu cầu chưa hoàn tất thành công, vui lòng thử lại sau.'): string {
   const parsed = getParsedApiError(error);
   const message = formatParsedApiError(parsed);
   return message.trim() || fallback;

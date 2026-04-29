@@ -1,7 +1,7 @@
 import type { ReportLanguage } from '../types/analysis';
 
 export const normalizeReportLanguage = (value?: string | null): ReportLanguage =>
-  value === 'en' ? 'en' : 'zh';
+  value === 'en' || value === 'vi' ? value : 'zh';
 
 const REPORT_TEXT = {
   zh: {
@@ -95,6 +95,52 @@ const REPORT_TEXT = {
     laggingBoard: 'Lagging',
     neutralBoard: 'Neutral',
     reanalyze: 'Reanalyze',
+  },
+  vi: {
+    keyInsights: 'ĐIỂM CHÍNH',
+    noAnalysisSummary: 'Chưa có kết luận phân tích',
+    actionAdvice: 'Khuyến nghị hành động',
+    noAdvice: 'Chưa có khuyến nghị',
+    trendPrediction: 'Dự báo xu hướng',
+    noPrediction: 'Chưa có dự báo',
+    marketSentiment: 'Tâm lý thị trường',
+    strategyPoints: 'MỐC CHIẾN LƯỢC',
+    sniperLevels: 'Mốc hành động',
+    idealBuy: 'Điểm mua lý tưởng',
+    secondaryBuy: 'Điểm mua phụ',
+    stopLoss: 'Cắt lỗ',
+    takeProfit: 'Chốt lời',
+    noValue: '—',
+    newsFeed: 'TIN TỨC',
+    relatedNews: 'Tin liên quan',
+    refresh: 'Làm mới',
+    retry: 'Thử lại',
+    dismiss: 'Đóng',
+    details: 'Xem chi tiết',
+    loadingNews: 'Đang tải tin...',
+    noNews: 'Chưa có tin liên quan',
+    noNewsDescription: 'Có thể làm mới lại sau để lấy tin mới nhất.',
+    openLink: 'Mở',
+    transparency: 'MINH BẠCH',
+    traceability: 'Truy vết dữ liệu',
+    rawResult: 'Kết quả phân tích thô',
+    analysisSnapshot: 'Ảnh chụp phân tích',
+    copy: 'Sao chép',
+    copied: 'Đã sao chép!',
+    recordId: 'ID bản ghi',
+    fullReport: 'Báo cáo phân tích đầy đủ',
+    loadingReport: 'Đang tải báo cáo...',
+    loadReportFailed: 'Tải báo cáo thất bại',
+    copyMarkdownSource: 'Sao chép Markdown',
+    copyPlainText: 'Sao chép văn bản',
+    analysisModel: 'Mô hình',
+    fearGreedIndex: 'Chỉ số Sợ hãi & Tham lam',
+    boardLinkage: 'LIÊN KẾT NGÀNH',
+    relatedBoards: 'Ngành liên quan',
+    leadingBoard: 'Dẫn dắt',
+    laggingBoard: 'Yếu hơn',
+    neutralBoard: 'Trung tính',
+    reanalyze: 'Phân tích lại',
   },
 } as const;
 

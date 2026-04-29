@@ -395,6 +395,13 @@ def _build_language_section(report_language: str, *, chat_mode: bool = False) ->
 - Reply in English.
 - If you output JSON, keep the keys unchanged and write every human-readable value in English.
 """
+        if normalized == "vi":
+            return """
+## Ngôn ngữ đầu ra
+
+- Trả lời bằng tiếng Việt.
+- Nếu xuất JSON, giữ nguyên key và viết mọi giá trị người dùng đọc được bằng tiếng Việt.
+"""
         return """
 ## 输出语言
 
@@ -410,6 +417,15 @@ def _build_language_section(report_language: str, *, chat_mode: bool = False) ->
 - `decision_type` must remain `buy|hold|sell`.
 - All human-readable JSON values must be written in English.
 - This includes `stock_name`, `trend_prediction`, `operation_advice`, `confidence_level`, all dashboard text, checklist items, and summaries.
+"""
+    if normalized == "vi":
+        return """
+## Ngôn ngữ đầu ra
+
+- Giữ nguyên mọi key JSON.
+- `decision_type` phải giữ nguyên `buy|hold|sell`.
+- Tất cả giá trị người dùng đọc được phải viết bằng tiếng Việt.
+- Bao gồm `stock_name`, `trend_prediction`, `operation_advice`, `confidence_level`, toàn bộ nội dung dashboard, checklist và tóm tắt.
 """
 
     return """
@@ -643,6 +659,8 @@ class AgentExecutor:
                 parts.append(f"报告类型: {context['report_type']}")
             if report_language == "en":
                 parts.append("输出语言: English（所有 JSON 键名保持不变，所有面向用户的文本值使用英文）")
+            elif report_language == "vi":
+                parts.append("输出语言: Tiếng Việt（giữ nguyên mọi key JSON, mọi giá trị người dùng đọc được dùng tiếng Việt）")
             else:
                 parts.append("输出语言: 中文（所有 JSON 键名保持不变，所有面向用户的文本值使用中文）")
 

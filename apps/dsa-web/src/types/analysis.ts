@@ -19,7 +19,7 @@ export interface AnalysisRequest {
 
 // ============ Report Types ============
 
-export type ReportLanguage = 'zh' | 'en';
+export type ReportLanguage = 'zh' | 'en' | 'vi';
 
 /** Report metadata */
 export interface ReportMeta {
@@ -46,7 +46,12 @@ export type SentimentLabel =
   | 'Bearish'
   | 'Neutral'
   | 'Bullish'
-  | 'Very Bullish';
+  | 'Very Bullish'
+  | 'Rất tiêu cực'
+  | 'Tiêu cực'
+  | 'Trung tính'
+  | 'Tích cực'
+  | 'Rất tích cực';
 
 /** Report summary section */
 export interface ReportSummary {
@@ -252,6 +257,13 @@ export const getSentimentLabel = (score: number, language: ReportLanguage = 'zh'
     if (score <= 60) return 'Neutral';
     if (score <= 80) return 'Bullish';
     return 'Very Bullish';
+  }
+  if (language === 'vi') {
+    if (score <= 20) return 'Rất tiêu cực';
+    if (score <= 40) return 'Tiêu cực';
+    if (score <= 60) return 'Trung tính';
+    if (score <= 80) return 'Tích cực';
+    return 'Rất tích cực';
   }
   if (score <= 20) return '极度悲观';
   if (score <= 40) return '悲观';
