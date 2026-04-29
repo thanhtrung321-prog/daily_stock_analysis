@@ -427,7 +427,7 @@ class ConfigEnvCompatibilityTestCase(unittest.TestCase):
 
     @patch("src.config.setup_env")
     @patch.object(Config, "_parse_litellm_yaml", return_value=[])
-    def test_market_review_region_hk_is_accepted_without_touching_llm_config(
+    def test_market_review_region_hk_falls_back_to_cn_without_touching_llm_config(
         self,
         _mock_parse_yaml,
         _mock_setup_env,
@@ -444,7 +444,7 @@ class ConfigEnvCompatibilityTestCase(unittest.TestCase):
         with patch.dict(os.environ, env, clear=True):
             config = Config._load_from_env()
 
-        self.assertEqual(config.market_review_region, "hk")
+        self.assertEqual(config.market_review_region, "cn")
         self.assertEqual(config.litellm_model, "openai/gpt-4o-mini")
         self.assertEqual(config.openai_base_url, "https://example.invalid/v1")
         self.assertEqual(config.llm_temperature, 0.42)
@@ -480,7 +480,7 @@ class ConfigEnvCompatibilityTestCase(unittest.TestCase):
 
     @patch("src.config.setup_env")
     @patch.object(Config, "_parse_litellm_yaml", return_value=[])
-    def test_market_review_region_hk_keeps_llm_channels_unchanged(
+    def test_market_review_region_hk_falls_back_to_cn_and_keeps_llm_channels_unchanged(
         self,
         _mock_parse_yaml,
         _mock_setup_env,
@@ -498,7 +498,7 @@ class ConfigEnvCompatibilityTestCase(unittest.TestCase):
         with patch.dict(os.environ, env, clear=True):
             config = Config._load_from_env()
 
-        self.assertEqual(config.market_review_region, "hk")
+        self.assertEqual(config.market_review_region, "cn")
         self.assertEqual(config.llm_models_source, "llm_channels")
         self.assertEqual(config.llm_channels[0]["protocol"], "openai")
         self.assertEqual(config.llm_channels[0]["base_url"], "https://example.invalid/v1")

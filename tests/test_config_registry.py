@@ -142,11 +142,11 @@ class TestDiscordInteractionPublicKeyField(unittest.TestCase):
 
 
 class TestMarketReviewRegionRegistry(unittest.TestCase):
-    def test_market_review_region_supports_hk_and_both(self):
+    def test_market_review_region_keeps_hk_hidden_until_supported_end_to_end(self):
         field = get_field_definition("MARKET_REVIEW_REGION")
-        self.assertEqual(field["options"], ["cn", "hk", "us", "both"])
-        self.assertEqual(field["validation"]["enum"], ["cn", "hk", "us", "both"])
-        self.assertIn("hk", field["description"].lower())
+        self.assertEqual(field["options"], ["cn", "us", "both"])
+        self.assertEqual(field["validation"]["enum"], ["cn", "us", "both"])
+        self.assertNotIn("hk", field["options"])
 
 
 if __name__ == "__main__":
